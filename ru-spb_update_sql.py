@@ -223,6 +223,7 @@ def my_sleep(mysleep, last_timer):
 
 def history_updater(linux_path, db_connection_str):  # делаем обновление базы mysql
     cur_date = datetime.today()
+    time_count =[]
     teh_an_list = ['date', 'st_id', 'teh_daily_sel', 'teh_daily_buy', 'teh_weekly_sel', 'teh_weekly_buy',
                    'teh_monthly_sell', 'teh_monthly_buy',
                    'daily_sma_signal_200', 'daily_ema_signal_200', 'weekly_sma_signal_200', 'weekly_ema_signal_200',
@@ -275,6 +276,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                                        from_date=from_date_m,
                                                                        to_date=to_date_m)
                         time.sleep(mysleep)
+                        timet_count.append(time.time())
                         df_update['market'] = "SPB"
                         print(f'SPB load ok {df_last_update.iloc[ind, 0]}')
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
@@ -296,6 +298,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                 ))[
                                 ['Open', 'High', 'Low', 'Close', 'Volume']]).round(4)
                         time.sleep(mysleep)
+                        timet_count.append(time.time())
                         df_update[['Currency', 'market']] = "USD", 'SPB'
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
                         df_update.drop_duplicates(subset='Date', inplace=True)
@@ -318,6 +321,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                                        from_date=from_date_m,
                                                                        to_date=to_date_m)
                         time.sleep(mysleep)
+                        timet_count.append(time.time())
                         # print(df_last_update.iloc[ind, 0], df_update.tail(3))
                         df_update['market'] = "US"
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
@@ -336,6 +340,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                 ))[
                                 ['Open', 'High', 'Low', 'Close', 'Volume']]).round(4)
                         time.sleep(mysleep)
+                        timet_count.append(time.time())
                         df_update[['st_id', 'Currency', 'market']] = name, "USD", 'US'
                         # print('data fro YAHHO', df_update.tail(3))
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
@@ -354,6 +359,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                                    to_date=to_date_m)
                     # print(df_last_update.iloc[ind, 0],df_update)
                     time.sleep(mysleep)
+                    timet_count.append(time.time())
                     df_update['market'] = "RU"
                     df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
                     df_update.drop_duplicates(subset='Date', inplace=True)
@@ -367,7 +373,11 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 # exit()
                 continue
             # print(df_update)
-
+        if len(time_count) == 300:
+            f = open(linux_path+'timer.log', mode='a')
+            f.writelines(str(timet_count) + '\n')
+            f.close()
+            save_log(linux_path, 'timer_count  saved to timer.log')
     save_log(linux_path, 'update complite')
     save_log(linux_path, 'teh indicator update start')
     update_teh = 0
@@ -398,7 +408,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 # print(teh_analis_local)
         else:
             deltadays = (cur_date.date() - df_last_teh[df_last_teh.st_id == indexx].iloc[0]['date_max']).days
-            if deltadays <= 700 and deltadays > 7 and datetime.today().time().hour < 11:
+            if deltadays <= 700 and deltadays > 7 and datetime.today().time().hour < 12:
                 if df_last_update[df_last_update.st_id == indexx].iloc[0]["Currency"] == 'USD':
                     try:
                         teh_analis_local = teh_an(indexx, country_teh=market_name[0])
