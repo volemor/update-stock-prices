@@ -253,7 +253,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
     # df_last_update.to_excel(linux_path + 'base_status.xlsx')
     # print("save to excel...OK")
     print(f'длина массива {len(df_last_update)}')
-    mysleep, max_wait_days = 0.75, 20
+    # mysleep, max_wait_days = 0.01, 20
     save_log(linux_path, 'DataFrame leght ' + str(len(df_last_update)))
     us_stock = investpy.get_stocks(country=market_name[0])['symbol']  # список тикеров в США
     for ind in tqdm(range(len(df_last_update))):
@@ -276,7 +276,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                                        from_date=from_date_m,
                                                                        to_date=to_date_m)
                         time.sleep(mysleep)
-                        timet_count.append(time.time())
+                        time_count.append(time.time())
                         df_update['market'] = "SPB"
                         print(f'SPB load ok {df_last_update.iloc[ind, 0]}')
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
@@ -298,7 +298,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                 ))[
                                 ['Open', 'High', 'Low', 'Close', 'Volume']]).round(4)
                         time.sleep(mysleep)
-                        timet_count.append(time.time())
+                        time_count.append(time.time())
                         df_update[['Currency', 'market']] = "USD", 'SPB'
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
                         df_update.drop_duplicates(subset='Date', inplace=True)
@@ -321,7 +321,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                                        from_date=from_date_m,
                                                                        to_date=to_date_m)
                         time.sleep(mysleep)
-                        timet_count.append(time.time())
+                        time_count.append(time.time())
                         # print(df_last_update.iloc[ind, 0], df_update.tail(3))
                         df_update['market'] = "US"
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
@@ -340,7 +340,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                 ))[
                                 ['Open', 'High', 'Low', 'Close', 'Volume']]).round(4)
                         time.sleep(mysleep)
-                        timet_count.append(time.time())
+                        time_count.append(time.time())
                         df_update[['st_id', 'Currency', 'market']] = name, "USD", 'US'
                         # print('data fro YAHHO', df_update.tail(3))
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
@@ -359,7 +359,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                                                                    to_date=to_date_m)
                     # print(df_last_update.iloc[ind, 0],df_update)
                     time.sleep(mysleep)
-                    timet_count.append(time.time())
+                    time_count.append(time.time())
                     df_update['market'] = "RU"
                     df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
                     df_update.drop_duplicates(subset='Date', inplace=True)
@@ -374,12 +374,32 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 continue
             # print(df_update)
         if len(time_count) == 300:
-            f = open(linux_path+'timer.log', mode='a')
-            f.writelines(str(timet_count) + '\n')
+            delta_time = []
+            for ind in range(300-1):
+                delta = time_count[ind + 1] - time_count[ind]
+                delta_time.append(delta)
+            delta_f = pd.Series(delta_time)
+            save_log(linux_path, f'mean of timer_count is [{delta_f.mean()}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
+            f = open(linux_path + 'timer.log', mode='a')
+            f.writelines(f'today [{datetime.today()}] -'+ str(time_count) + '\n')
             f.close()
-            save_log(linux_path, 'timer_count  saved to timer.log')
+            save_log(linux_path, 'timer_count saved to timer.log')
     save_log(linux_path, 'update complite')
+    # запускаем обновление актуальности данных в history_data
+    history_date_base_update(db_connection_str)
     save_log(linux_path, 'teh indicator update start')
+    # try to find and save timedalta between operation
+    # delta_time = []
+    # for ind in range(300):
+    #     delta = time_count[ind + 1] - time_count[ind]
+    #     delta_time.append(delta)
+    # delta_f = pd.Series(delta_time)
+    # save_log(linux_path,
+    #          f'mean of timer_count is [{delta_f.mean()}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
+    # f = open(linux_path + 'timer.log', mode='a')
+    # f.writelines(f'today [{datetime.today()}] -' + str(time_count) + '\n')
+    # f.close()
+    # save_log(linux_path, 'timer_count saved to timer.log')
     update_teh = 0
     for indexx in tqdm(df_last_update.st_id):
         if pd.DataFrame.any(
@@ -408,7 +428,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 # print(teh_analis_local)
         else:
             deltadays = (cur_date.date() - df_last_teh[df_last_teh.st_id == indexx].iloc[0]['date_max']).days
-            if deltadays <= 700 and deltadays > 7 and datetime.today().time().hour < 12:
+            if deltadays <= 700 and deltadays > 15 and datetime.today().time().hour < 12:
                 if df_last_update[df_last_update.st_id == indexx].iloc[0]["Currency"] == 'USD':
                     try:
                         teh_analis_local = teh_an(indexx, country_teh=market_name[0])
@@ -435,8 +455,6 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
     # save_log(linux_path, 'teh indicator is up to date [ ' + str(update_teh) + ' ]')
     # save_log(linux_path, 'teh indicator smooler ' + str(deltadays))
     save_log(linux_path, f'teh indicator update complite, make {update_teh} records')
-    # запускаем обновление актуальности данных в history_data
-    history_date_base_update(db_connection_str)
     # df_last_update = pd.read_sql(
     #     'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
     #     con=db_connection)  # загрузили список тикеров из базы с последней датой
@@ -513,10 +531,10 @@ def statistic_data_base(df_last_update):
 linux_path = ''
 db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
 delta_data_koeff = 20
-mysleep, max_wait_days = 0.75, 10
+mysleep, max_wait_days = 0.001, 45
 
 def main():
-    global linux_path
+    global linux_path, mysleep
     print('программа обновления базы данных торговой истории')
     print('START')
     # My constant list

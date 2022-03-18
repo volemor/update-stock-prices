@@ -17,8 +17,9 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from pandas import DataFrame
 from sqlalchemy import create_engine
 from tqdm import tqdm
+from threading import Thread
 
-current_version = "22.5"
+current_version = "22.6"
 
 '''
 делаем массив для анализа ошибок!!
@@ -29,7 +30,9 @@ v22.3 - изменения - оптимизируем код  convert_df_to_np_f
         добавил окраску ячеек в экселе по списку из D_list. 
 v22.4 - изменения... добавляем модуль мониторинга.... возможно удалим very_vol
 
-
+v22.6 - пробуем добавить мультипоточность, кстати - 1--- в процесс подгрузки из sql. 2 ---  в расчеты 
+        и поменять способ добавления строки в датафрейм - делаем через .loc[len(df)] = [**kwarg]  
+        
 
 
         --- требуется - написать программу, которая будет по списку... (список вручную) .. из базы данных вырезать все значения тикера 
@@ -322,13 +325,13 @@ def sql_base_make(linux_path, db_connection_str,
 
     df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
     last_day_sql = df_last_update.iloc[1]['date_max'].date()
-    if (today_date.date() - last_day_sql).days != 0:
-        df_last_update = pd.read_sql(
-            'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
-            con=db_connection)  # загрузили список тикеров из базы с последней датой
-        df_last_update['today_day'] = datetime.today()
-        df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')  # append , replace
-        save_log(linux_path, 'base_status table is Update ')
+    # if (today_date.date() - last_day_sql).days != 0 :
+    #     df_last_update = pd.read_sql(
+    #         'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id;',
+    #         con=db_connection)  # загрузили список тикеров из базы с последней датой
+    #     df_last_update['today_day'] = datetime.today()
+    #     df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')  # append , replace
+    #     save_log(linux_path, 'base_status table is Update ')
     df_last_teh = pd.read_sql('Select st_id, max(date) as date_max from teh_an group by st_id',
                               con=db_connection)
     max_teh_date = pd.DataFrame.max(df_last_teh.date_max[:])
@@ -395,7 +398,7 @@ def sql_base_make(linux_path, db_connection_str,
     '''
     # загружаем базу данных, и список тикеров с последней датой обновления . сортируем по дате. по списку
     # тикеров проходимся в базе данных -
-    # делаем выборку по тикеру - столбцы date, high, low -- переводим индекс date. конвертируем в numpy.
+    # делаем выборку по тикеру - столбцы date, high, low -- переводим индекс date. уже не конвертируем в numpy.
     # передаем в функцию
     '''
     df_spb.sort_values(by=['date'], inplace=True)
@@ -598,7 +601,7 @@ def send_email(name_for_save, name_for_save_crop):
     line_list = file.readlines()
     sender, password = line_list[0][:-1], line_list[1][:-1]
     client_mail_vip = ['volemor@yandex.ru', 'azinaidav@mail.ru',
-                       'krotar@mail.ru', 'p.trubitsyn7@yandex.ru',  'dom_teh@mail.ru']# 'shanaev_av@mail.ru' ,'fedorov.efrem@gmail.com' ]
+                       'krotar@mail.ru', 'p.trubitsyn7@yandex.ru']# ,  'dom_teh@mail.ru']# 'shanaev_av@mail.ru' ,'fedorov.efrem@gmail.com' ]
     client_mail = ['p.trubitsyn7@yandex.ru']
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
