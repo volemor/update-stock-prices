@@ -28,10 +28,10 @@ v22.2 - изменения в связи с заменой источника br
 !
 v22.3 - изменения - оптимизируем код  convert_df_to_np_from_sql - сокращаем число строк и переменные подгружаем в списки
         добавил окраску ячеек в экселе по списку из D_list. 
-v22.4 - изменения... добавляем модуль мониторинга.... возможно удалим very_vol
+v22.4 - изменения... добавляем модуль мониторинга.... возможно удалим very_vol, с-200, 
 
 v22.6 - пробуем добавить мультипоточность, кстати - 1--- в процесс подгрузки из sql. 2 ---  в расчеты 
-        и поменять способ добавления строки в датафрейм - делаем через .loc[len(df)] = [**kwarg]  
+        и поменять способ добавления строки в датафрейм - делаем через df.loc[len(df)] = [**kwarg]  
         
 
 
@@ -295,6 +295,19 @@ def convert_df_to_np_from_sql(df1, stok_name, st_inv, col_list, branch,
     # print('DF___',df2)
     return df2  # готовим данные для записи в таблицу
 
+
+def statistic_data_base():
+    ''' подсчет статистики актуальности базы данных, с охранением результата в лог'''
+    for market_s in df_last_update['market'].unique():
+        listing_ll = pd.Series(
+            {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
+        for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
+            print(
+                f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
+            save_log(linux_path,
+                     f"date for [{market_s}]=[{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
+
+
 def sql_base_make(linux_path, db_connection_str,
                   col_list):  # Модуль загрузки данных из базы mysql и формирования отчетных таблиц
     global branch_name_local
@@ -334,6 +347,9 @@ def sql_base_make(linux_path, db_connection_str,
     #     save_log(linux_path, 'base_status table is Update ')
     df_last_teh = pd.read_sql('Select st_id, max(date) as date_max from teh_an group by st_id',
                               con=db_connection)
+    '''
+     считаем статистику по теханализу 
+    '''
     max_teh_date = pd.DataFrame.max(df_last_teh.date_max[:])
     teh_full = round(len(df_last_teh[df_last_teh.date_max == max_teh_date]) / len(df_last_teh), 2)
     min_teh_date = pd.DataFrame.min(df_last_teh.date_max[:])
@@ -343,16 +359,15 @@ def sql_base_make(linux_path, db_connection_str,
         save_log(linux_path, 'base teh analis not full - only ' + str(teh_full * 100) + ' %')
         max_teh_date = min_teh_date # берем для использования минимальную из максимальных
     save_log(linux_path, 'teh_date - [' + str(max_teh_date) + ']')
-    # проходимся по базе - если она старше 10 дней - просим обновиться, заодно удаляем старые тикеры, а также все, что на бирже не обновляется давно
-    max_old_days = 25
     max_stick, start_stick_num = len(df_last_update['st_id']), 0
     max_date = pd.DataFrame.max(df_last_update.date_max[:])
     print('max date', max_date)
+
     for indexx in df_last_update['st_id']:
         if (today_date - df_last_update[df_last_update.st_id == indexx].iloc[0]['date_max']).days <= max_old_days:
             start_stick_num += 1
             # print(indexx)
-    message = f'hist_data tiker smoler [{max_old_days}] days [{start_stick_num}], all tikers [{max_stick}], part=[{round(start_stick_num / max_stick, 2)}] %'
+    message = f'hist_data tiker smoler [{max_old_days}] days [{start_stick_num}], all tikers [{max_stick}], part=[{round(start_stick_num / max_stick, 1)}] %'
     save_log(linux_path, message)
     print(message)
     df_out_date = df_last_update[df_last_update.date_max <= max_date - timedelta(days=max_old_days)]
@@ -380,14 +395,16 @@ def sql_base_make(linux_path, db_connection_str,
             con=db_connection)  ## загружаем базу US
         print('US sql load OK')
     # считаем актуальность базы данных
-    for market_s in df_last_update['market'].unique():
-        listing_ll = pd.Series(
-            {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
-        for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
-            print(
-                f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date() )}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
-            save_log(linux_path,
-                     f"date for [{market_s}]=[{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
+    statistic_data_base()
+    # for market_s in df_last_update['market'].unique():
+    #     listing_ll = pd.Series(
+    #         {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
+    #     for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
+    #         print(
+    #             f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date() )}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
+    #         save_log(linux_path,
+    #                  f"date for [{market_s}]=[{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
+
     save_log(linux_path, "SPB base load--" + str(len(df_spb)) + "...[OK]")
     save_log(linux_path, "RU base load--" + str(len(df_ru)) + "...[OK]")
     if datetime.today().weekday() == 5:
@@ -396,17 +413,17 @@ def sql_base_make(linux_path, db_connection_str,
     # print(f'SPB base [{len(df_spb[])}') доделать надо..
     save_log(linux_path, 'load DATA from Mysql...[OK]')
     '''
-    # загружаем базу данных, и список тикеров с последней датой обновления . сортируем по дате. по списку
-    # тикеров проходимся в базе данных -
-    # делаем выборку по тикеру - столбцы date, high, low -- переводим индекс date. уже не конвертируем в numpy.
-    # передаем в функцию
+    загружаем базу данных, и список тикеров с последней датой обновления . сортируем по дате. по списку
+    тикеров проходимся в базе данных -
+    делаем выборку по тикеру - столбцы date, high, low -- переводим индекс date. уже не конвертируем в numpy.
+    передаем в функцию
     '''
     df_spb.sort_values(by=['date'], inplace=True)
     df_ru.sort_values(by=['date'], inplace=True)
     if datetime.today().weekday() == 5:
         df_from_us.sort_values(by=['date'], inplace=True)
-    start_timer = datetime.today()
-    print('\n[', datetime.today(), ']', 'stage 3 (SPB).....[Calculating]')
+    # start_timer = datetime.today()
+    print('\n[', datetime.today(), ']', 'stage 1 (SPB).....[Calculating]')
     for ind in tqdm(df_last_update['st_id']):  # считаем рынок СПБ
         if pd.DataFrame.any(branch_name.st_id == ind):
             branch_name_local = branch_name[branch_name.st_id == ind].iloc[0]['branch']
@@ -430,7 +447,7 @@ def sql_base_make(linux_path, db_connection_str,
             # print(my_df)
             big_df = pd.concat([big_df,my_df])
     print('len big df SPB', len(big_df))
-    print('\n[', datetime.today(), ']', 'stage 4 (RU)......[Calculating]')
+    print('\n[', datetime.today(), ']', 'stage 2 (RU)......[Calculating]')
     for ind in tqdm(df_last_update['st_id']):  # считаем рынок Московская биржа
         if pd.DataFrame.any(branch_name.st_id == ind):
             branch_name_local = branch_name[branch_name.st_id == ind].iloc[0]['branch']
@@ -447,16 +464,16 @@ def sql_base_make(linux_path, db_connection_str,
                 save_log(linux_path, message)
                 continue
             big_df_ru = pd.concat([big_df_ru,my_df_ru])
-    print('\n[', datetime.today(), ']', 'stage 5 (dmitry)..[Collecting]')
+    print('\n[', datetime.today(), ']', 'stage 3 (dmitry)..[Collecting]')
     ###  создаем сборку для фильтрации – это простая выборка из массива на основе шаблона – гораздо проще чем поиск
     # кстати надо попробовать предыдущие циклы переделать с помощью команды map – наверное не получится – слишком много переменных передавать надо
     ### зато интересный скилл изучили..!!!
     dmitry_list_for_filter = big_df['tiker'].isin([*dmitry_list_spb])
     dmitry_df = big_df[dmitry_list_for_filter].copy()
-    print('\n[', datetime.today(), ']', 'stage 6 (zina)..[Collecting]')
+    print('\n[', datetime.today(), ']', 'stage 4 (zina)..[Collecting]')
     zina_df = big_df[big_df['tiker'].isin ([*zina_list_spb])].copy()
     if datetime.today().weekday() == 5:
-        print('\n[', datetime.today(), ']', 'stage 7 (US)..[Collecting]')
+        print('\n[', datetime.today(), ']', 'stage 5 (US)..[Collecting]')
         for tik_index in tqdm(df_last_update['st_id']):
             if pd.DataFrame.any(branch_name.st_id == tik_index):
                 branch_name_local = branch_name[branch_name.st_id == tik_index].iloc[0]['branch']
@@ -476,7 +493,7 @@ def sql_base_make(linux_path, db_connection_str,
                     continue
                 big_df_US = big_df_US.append(my_df)  # , list(col_list))
     else:
-        print('\n[', datetime.today(), ']', 'today not for stage 7 -- (US), see later -(need 5 day of weekday)')
+        print('\n[', datetime.today(), ']', 'today not for stage 5 -- (US), see later -(need 5 day of weekday)')
 
     name_for_save = str(linux_path) + 'sql_make-' + str(start_timer.date()) + '.xlsx'
     with pd.ExcelWriter(name_for_save) as writer:  # записываем отчетный файл
@@ -588,7 +605,6 @@ def pd_df_to_sql(df, db_connection_str, st_name, ind,
     engine = create_engine(db_connection_str)
     try:
         df.to_sql(name='hist_data', con=engine, if_exists='append')  # append , replace
-        # print(st_name,"save_to MYSQL...... [OK]")
     except:
         print('pd_to_sql --- [error]')
 
@@ -632,7 +648,6 @@ def send_email(name_for_save, name_for_save_crop):
     except Exception as _ex:
         return f"{_ex}\n Check your login"
 
-
 def dmitry_hist_tab(linux_path, *stope_1):
     tab_name = 'history-all.xlsx'
     dmitry_tab = pd.read_excel(str(linux_path + tab_name), sheet_name='SBP',
@@ -647,6 +662,7 @@ def main():
     print(f'[{start_timer}] START')
     # My constant list
     col_list = my_start()
+    max_old_days = 25
     db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
     db_connection_hist_bks = 'mysql+pymysql://python:python@192.168.0.118/history_bks'  # создана база данных history_bks - для сохранения  и работы со сделками,,, надо сделать таблицу, для загрузки итоговой сводной таблицы
     if os.name == 'nt':

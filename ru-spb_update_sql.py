@@ -128,7 +128,6 @@ def my_start():  # исходные данные - константы
     #                ]
     return col_list
 
-
 def history_data(linux_path):  # сохраняем все  -- вроде работает
     from_date, to_date = '1/08/2019', '01/08/2021'
     stock_list_data = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'st_id', 'market']
@@ -213,12 +212,6 @@ def stik_up_status(linux_path):
     elif n == 11:
         stiker_load_status = pd.read_excel(linux_path + 'load_status.xlsx')
     return stiker_load_status
-
-
-def my_sleep(mysleep, last_timer):
-    pass
-
-# if datetime.today() -
 
 
 def history_updater(linux_path, db_connection_str):  # делаем обновление базы mysql
@@ -386,20 +379,9 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
             save_log(linux_path, 'timer_count saved to timer.log')
     save_log(linux_path, 'update complite')
     # запускаем обновление актуальности данных в history_data
-    history_date_base_update(db_connection_str)
+    history_date_base_update()
     save_log(linux_path, 'teh indicator update start')
-    # try to find and save timedalta between operation
-    # delta_time = []
-    # for ind in range(300):
-    #     delta = time_count[ind + 1] - time_count[ind]
-    #     delta_time.append(delta)
-    # delta_f = pd.Series(delta_time)
-    # save_log(linux_path,
-    #          f'mean of timer_count is [{delta_f.mean()}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
-    # f = open(linux_path + 'timer.log', mode='a')
-    # f.writelines(f'today [{datetime.today()}] -' + str(time_count) + '\n')
-    # f.close()
-    # save_log(linux_path, 'timer_count saved to timer.log')
+
     update_teh = 0
     for indexx in tqdm(df_last_update.st_id):
         if pd.DataFrame.any(
@@ -463,7 +445,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
     return df_last_update
 
 
-def history_date_base_update(db_connection_str):
+def history_date_base_update(db_connection_str = db_connection_str):
     db_connection = create_engine(db_connection_str)
     df_last_update = pd.read_sql(
         'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
@@ -513,7 +495,6 @@ def pd_df_to_sql(df):
 
 
 def statistic_data_base(df_last_update):
-    global linux_path
     listing_ll = pd.Series({c: df_last_update[c].unique() for c in df_last_update})
     listing_ll['date_max'].sort()
     # print(listing_ll)
