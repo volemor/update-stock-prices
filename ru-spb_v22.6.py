@@ -296,11 +296,14 @@ def convert_df_to_np_from_sql(df1, stok_name, st_inv, col_list, branch,
     return df2  # готовим данные для записи в таблицу
 
 
-def statistic_data_base():
+def statistic_data_base(df_last_update):
+    global linux_path
     ''' подсчет статистики актуальности базы данных, с охранением результата в лог'''
     for market_s in df_last_update['market'].unique():
         listing_ll = pd.Series(
             {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
+        listing_ll['date_max'].sort()
+
         for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
             print(
                 f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
@@ -311,6 +314,7 @@ def statistic_data_base():
 def sql_base_make(linux_path, db_connection_str,
                   col_list):  # Модуль загрузки данных из базы mysql и формирования отчетных таблиц
     global branch_name_local
+    start_timer = datetime.today()
     db_connection = create_engine(db_connection_str)  # connect to database
     big_df: DataFrame = pd.DataFrame(columns=list(col_list))
     big_df_US: DataFrame = pd.DataFrame(columns=list(col_list))
@@ -361,24 +365,25 @@ def sql_base_make(linux_path, db_connection_str,
     save_log(linux_path, 'teh_date - [' + str(max_teh_date) + ']')
     max_stick, start_stick_num = len(df_last_update['st_id']), 0
     max_date = pd.DataFrame.max(df_last_update.date_max[:])
-    print('max date', max_date)
+    print('max date for hist_date', max_date)
 
     for indexx in df_last_update['st_id']:
         if (today_date - df_last_update[df_last_update.st_id == indexx].iloc[0]['date_max']).days <= max_old_days:
             start_stick_num += 1
             # print(indexx)
-    message = f'hist_data tiker smoler [{max_old_days}] days [{start_stick_num}], all tikers [{max_stick}], part=[{round(start_stick_num / max_stick, 1)}] %'
+    message = f'hist_data tiker smoler [{max_old_days}] days [{start_stick_num}], all tikers [{max_stick}], part=[{round(100*start_stick_num / max_stick, 1)}] %'
     save_log(linux_path, message)
     print(message)
     df_out_date = df_last_update[df_last_update.date_max <= max_date - timedelta(days=max_old_days)]
     df_last_update = df_last_update[df_last_update.date_max > max_date - timedelta(
         days=max_old_days)]  ### отрезаем все тикеры , для которых данные старые!!!!!!!!! --- так можно все порезать так, что считать будет нечего
+    statistic_data_base(df_last_update)
     df_out_date.sort_values(by=['date_max'], inplace=True)
     save_log(linux_path, f'len of outdate of hist_date {len(df_out_date)} from {len(df_last_update)} id [{round(100*len(df_out_date)/len(df_last_update), 0)}]%' )
     df_teh = pd.read_sql(
         'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
         con=db_connection)
-    my_start_date = '2020-02-01'
+
     print('[', datetime.today(), ']', "load LIST from Mysql...[OK]")
     print('teh_an shape', df_teh.shape)
     df_spb = pd.read_sql(
@@ -395,7 +400,7 @@ def sql_base_make(linux_path, db_connection_str,
             con=db_connection)  ## загружаем базу US
         print('US sql load OK')
     # считаем актуальность базы данных
-    statistic_data_base()
+    statistic_data_base(df_last_update)
     # for market_s in df_last_update['market'].unique():
     #     listing_ll = pd.Series(
     #         {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
@@ -466,7 +471,8 @@ def sql_base_make(linux_path, db_connection_str,
             big_df_ru = pd.concat([big_df_ru,my_df_ru])
     print('\n[', datetime.today(), ']', 'stage 3 (dmitry)..[Collecting]')
     ###  создаем сборку для фильтрации – это простая выборка из массива на основе шаблона – гораздо проще чем поиск
-    # кстати надо попробовать предыдущие циклы переделать с помощью команды map – наверное не получится – слишком много переменных передавать надо
+    # кстати надо попробовать предыдущие циклы переделать с помощью команды map
+    # – наверное не получится – слишком много переменных передавать надо
     ### зато интересный скилл изучили..!!!
     dmitry_list_for_filter = big_df['tiker'].isin([*dmitry_list_spb])
     dmitry_df = big_df[dmitry_list_for_filter].copy()
@@ -495,7 +501,7 @@ def sql_base_make(linux_path, db_connection_str,
     else:
         print('\n[', datetime.today(), ']', 'today not for stage 5 -- (US), see later -(need 5 day of weekday)')
 
-    name_for_save = str(linux_path) + 'sql_make-' + str(start_timer.date()) + '.xlsx'
+    name_for_save = str(linux_path) + 'sql_make-' + str(datetime.today().date()) + '.xlsx'
     with pd.ExcelWriter(name_for_save) as writer:  # записываем отчетный файл
         big_df.to_excel(writer, sheet_name='SPB')  # считаем весь рынок SPB
         big_df_ru.to_excel(writer, sheet_name='RU')  # считаем весь рынок RU
@@ -655,14 +661,19 @@ def dmitry_hist_tab(linux_path, *stope_1):
     print(dmitry_tab.tiker[pd.DataFrame.notna(dmitry_tab.tiker)])
     dmitry_list_spb = dmitry_tab.tiker[pd.DataFrame.notna(dmitry_tab.tiker)]
 
+max_old_days = 25
+my_start_date = '2020-02-01'
+linux_path = ''
 
 def main():
+    global linux_path, my_start_date
     print(f'программа расчета таблицы по стикерам v.{current_version}' )
     start_timer = datetime.today()
     print(f'[{start_timer}] START')
     # My constant list
     col_list = my_start()
     max_old_days = 25
+    my_start_date = '2020-02-01'
     db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
     db_connection_hist_bks = 'mysql+pymysql://python:python@192.168.0.118/history_bks'  # создана база данных history_bks - для сохранения  и работы со сделками,,, надо сделать таблицу, для загрузки итоговой сводной таблицы
     if os.name == 'nt':
