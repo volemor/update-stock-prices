@@ -77,7 +77,7 @@ def sql_base_clear_for_split_list(list_for_replase_data):
         for index in range(len(list_for_replase_df)):  ### set zero to first row sql data
             try:
                 print((db_connection.execute(
-                    f"update hist_data set Open = '0', High = '0', Low ='0', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
+                    f"update hist_data set Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
                 list_sero_set.append(list_for_replase_df.iat[index, 1])
             except:
                 print(list_for_replase_df.iat[index, 1], 'set ZERO to first row error')
