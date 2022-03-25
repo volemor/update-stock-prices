@@ -8,15 +8,12 @@ from tqdm import tqdm
 from sqlalchemy import create_engine
 import os
 from pandas_datareader import data as pdr
-
+import threading
 ''' 
 надо бы сделать органичение по времени работы - типа в час ночи - сказать байбай.. иначе два запуска могут наложиться
 и investpy заблокирует на 3 дня нас...
 типа datetime.today().time().hour = 1 - то запись в лог и  exit() ---  
-добавлена обработка ошибок - и выходим если нет смысла проверять все. 
-добавлена отдельный лог для ошибок при вызове функций (update_extention.log).
-
- 
+добавлена многопоточность в подсчете статистики и в загрузке данных из локальной базы данных
 '''
 
 def teh_an(t_name, country_teh):  # модуль сбора данных теханализа
@@ -65,20 +62,11 @@ def teh_an(t_name, country_teh):  # модуль сбора данных тех�
     return teh_df
 
 
-def save_log(linux_path, message):
-    '''сохраняет в лог файл сообщение о работе программы.. '''
+def save_log(linux_path, message):  # сохраняет в лог файл сообщение..
     f = open(linux_path + 'update.log', mode='a')
-    lines = '[' + str(datetime.today()) + '] ' + str(message)
+    lines = '[' + str(datetime.today()) + '] ' + str(message) + 'thread'
     f.writelines(lines + '\n')
     f.close()
-
-def save_exeption_log (linux_path, modul, message):
-    '''записываем в файл логи ошибок с указанием модуля из которого был вызов '''
-    f = open(linux_path + 'update_extention.log', mode='a')
-    lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
-    f.writelines(lines + '\n')
-    f.close()
-
 
 
 def stock_name_table(linux_path):
@@ -113,7 +101,7 @@ def stock_name_table(linux_path):
         big_df.to_excel(writer, sheet_name='all')  ### работает!!!
     # big_df.to_csv('my_test_all_st.csv', sep=';', encoding='cp1251', line_terminator='/n', index=True)
 
-
+    exit()
 
 
 def my_start():  # исходные данные - константы
@@ -140,7 +128,6 @@ def my_start():  # исходные данные - константы
     #                'monthly_sma_signal 200', 'monthly_ema_signal 200'
     #                ]
     return col_list
-
 
 def history_data(linux_path):  # сохраняем все  -- вроде работает
     from_date, to_date = '1/08/2019', '01/08/2021'
@@ -172,12 +159,14 @@ def history_data(linux_path):  # сохраняем все  -- вроде раб
             # print('join', df_1)
             big_df_table = big_df_table.append(df_1, list(['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'st_id']))
 
-        except:
+
+        except Exception as _ex:
+            save_log(linux_path, str(_ex))
             print(f'name {test_stock.symbol.iloc[set_1]} Error')
             continue
     print('Big', big_df_table)
     big_df_table.to_excel(linux_path + 'history_data.xlsx')
-
+    exit()
     # stock_hist_data -- id, date ,open ,high ,low , close, st_id ### состав таблицы
     # df_test= df_1[['Date','High', 'Low', 'Volume']]#,)
     # print('test', df_test)
@@ -215,11 +204,10 @@ def history_data(linux_path):  # сохраняем все  -- вроде раб
     '''
 
 
-
 def history_updater(linux_path, db_connection_str):  # делаем обновление базы mysql
     cur_date = datetime.today()
-    time_count =[]
     global mysleep
+    time_count =[]
     teh_an_list = ['date', 'st_id', 'teh_daily_sel', 'teh_daily_buy', 'teh_weekly_sel', 'teh_weekly_buy',
                    'teh_monthly_sell', 'teh_monthly_buy',
                    'daily_sma_signal_200', 'daily_ema_signal_200', 'weekly_sma_signal_200', 'weekly_ema_signal_200',
@@ -232,25 +220,36 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
     teh_an_df_nodata.loc[0] = line_1
     # print('teh no data', teh_an_df_nodata)
     print('сегодня...', cur_date.strftime("%Y-%m-%d"))
-    save_log(linux_path, '---------------start update--------------' + '\n')
+    save_log(linux_path, '---------------start update--------------' )
     market_name = ['United States', 'United States', 'russia']
-    db_connection = create_engine(db_connection_str)  # connect to database
+    sql_command = ['Select st_id, max(date) as date_max, Currency, market from hist_data group by st_id','Select st_id, max(date) as date_max from teh_an group by st_id']
+    thre = []
+    for i, index_list in enumerate(sql_command):
+        thre.append(threading.Thread(target=sql_from_command, args=(index_list,)))
+    thre[0].start()
+    save_log(linux_path, 'Thread started')
+    # db_connection = create_engine(db_connection_str)  # connect to database
 
-    df_last_update = pd.read_sql('Select st_id, max(date) as date_max, Currency, market from hist_data group by st_id',
-                                 con=db_connection)  # загрузили список тикеров из базы с последней датой
+    # df_last_update = pd.read_sql(sql_command[0],
+    #                              con=db_connection)  # загрузили список тикеров из базы с последней датой
+    thre[0].join()
+    thre[1].start()
+    df_last_update = sql_comm_return[0]
+    statistic_data_base(df_last_update)
+    print("load from Mysql...OK", mysleep)
 
-    print("load from Mysql...OK")
-    df_last_teh = pd.read_sql(
-        'Select st_id, max(date) as date_max from teh_an group by st_id',
-        con=db_connection)  # загружаем последние данные по теханализу
+    # df_last_teh = pd.read_sql(
+    #     sql_command[1],
+    #     con=db_connection)  # загружаем последние данные по теханализу
     max_date_df = pd.DataFrame.max(df_last_update.iloc[:, 1])
-    print('Maximum date is--', max_date_df)
+    # print('Maximum date is--', max_date_df)
     # df_last_update['date_max'] = pd.to_datetime(df_last_update.date_max, format='%d-%m-%Y')
     # df_last_update.to_excel(linux_path + 'base_status.xlsx')
     # print("save to excel...OK")
-    print(f'длина массива {len(df_last_update)}')
-
+    # print(f'длина массива {len(df_last_update)}')
+    # mysleep, max_wait_days = 0.01, 20
     save_log(linux_path, 'DataFrame leght ' + str(len(df_last_update)))
+
     us_stock = investpy.get_stocks(country=market_name[0])['symbol']  # список тикеров в США
     for ind in tqdm(range(len(df_last_update))):
         deltadays = (cur_date - df_last_update.iloc[ind, 1]).days
@@ -280,11 +279,8 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         df_update.drop_duplicates(subset='Date', inplace=True)
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
+                        save_log(linux_path, str(_ex))
                         print("USA investpy load error", df_last_update.iloc[ind, 0])
-                        save_exeption_log(linux_path,modul='history' , str(_ex))
-                        if 'Max retries exceeded with' in str(_ex):
-                            save_log(linux_path, 'Too litle timedelta, need 2 pause')
-                            exit()
                         continue
                     print(df_update)
                 else:  # иначе лезем в YAHHO
@@ -307,7 +303,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                             df_update['Date'] >= datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path,modul='history' , str(_ex))
+                        save_log(linux_path, str(_ex))
                         print("USA YAHHO load error", df_last_update.iloc[ind, 0])
                         continue
                     print('yahho SPB \n', df_update)
@@ -329,7 +325,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         df_update['st_id'] = df_last_update.iloc[ind, 0]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='history',str(_ex))
+                        save_log(linux_path, str(_ex))
                         print("USA investpy load error", df_last_update.iloc[ind, 0])
                         continue
                 else:  # иначе лезем в YAHHO
@@ -351,7 +347,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                             df_update['Date'] >= datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path,modul='history' , str(_ex))
+                        save_log(linux_path, str(_ex))
                         print("USA YAHHO load error", df_last_update.iloc[ind, 0])
                         continue
             elif df_last_update.iloc[ind, 3] == 'RU':
@@ -369,7 +365,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     df_update['st_id'] = df_last_update.iloc[ind, 0]
                     pd_df_to_sql(df_update)
                 except Exception as _ex:
-                    save_exeption_log(linux_path,modul='history' , str(_ex))
+                    save_log(linux_path, str(_ex))
                     print("RU load error", df_last_update.iloc[ind, 0])
                     continue
             else:
@@ -383,27 +379,20 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 delta = time_count[ind + 1] - time_count[ind]
                 delta_time.append(delta)
             delta_f = pd.Series(delta_time)
-            save_log(linux_path, f'mean of timer_count is [{delta_f.mean()}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
+            save_log(linux_path, f'mean of timer_count is [{delta_f.mean().round(2)}], min is [{delta_f.min().round(2)}], max is [{delta_f.max().round(2)}]')
             f = open(linux_path + 'timer.log', mode='a')
             f.writelines(f'today [{datetime.today()}] -'+ str(time_count) + '\n')
             f.close()
             save_log(linux_path, 'timer_count saved to timer.log')
     save_log(linux_path, 'update complite')
     # запускаем обновление актуальности данных в history_data
-    history_date_base_update(db_connection_str)
+    thread_for_log = threading.Thread(target=history_date_base_update)
+    thread_for_log.start()
+    # history_date_base_update(db_connection_str)
+
+    thre[1].join()
+    df_last_teh = sql_comm_return[1]
     save_log(linux_path, 'teh indicator update start')
-    # try to find and save timedalta between operation
-    # delta_time = []
-    # for ind in range(300):
-    #     delta = time_count[ind + 1] - time_count[ind]
-    #     delta_time.append(delta)
-    # delta_f = pd.Series(delta_time)
-    # save_log(linux_path,
-    #          f'mean of timer_count is [{delta_f.mean()}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
-    # f = open(linux_path + 'timer.log', mode='a')
-    # f.writelines(f'today [{datetime.today()}] -' + str(time_count) + '\n')
-    # f.close()
-    # save_log(linux_path, 'timer_count saved to timer.log')
     update_teh = 0
     for indexx in tqdm(df_last_update.st_id):
         if pd.DataFrame.any(
@@ -413,7 +402,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     teh_analis_local = teh_an(indexx, country_teh=market_name[0])
                     print(f"insert USD DATA {indexx}")
                 except Exception as _ex:
-                    save_exeption_log(linux_path, modul='teh_an' , str(_ex))
+                    save_log(linux_path, str(_ex))
                     teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                     teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                     teh_analis_local = teh_an_df_nodata
@@ -425,7 +414,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     teh_analis_local = teh_an(indexx, country_teh=market_name[2])
                     print(f"insert RU DATA {indexx}")
                 except Exception as _ex:
-                    save_exeption_log(linux_path,modul='teh_an' , str(_ex))
+                    save_log(linux_path, str(_ex))
                     teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                     teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                     teh_analis_local = teh_an_df_nodata
@@ -441,7 +430,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         print(f"update USD DATA {indexx}")
                         update_teh +=1
                     except Exception as _ex:
-                        save_exeption_log(linux_path,modul='teh_an', str(_ex))
+                        save_log(linux_path, str(_ex))
                         teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                         teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                         teh_analis_local = teh_an_df_nodata
@@ -453,7 +442,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         print(f"update RU DATA {indexx}")
                         update_teh += 1
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='teh_an',str(_ex))
+                        save_log(linux_path, str(_ex))
                         teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                         teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                         teh_analis_local = teh_an_df_nodata
@@ -468,17 +457,21 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
     #     con=db_connection)  # загрузили список тикеров из базы с последней датой
     # df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')  # append , replace
     save_log(linux_path, 'base_status update complite')
+    thread_for_log.join()
     return df_last_update
 
 
-def history_date_base_update(db_connection_str):
-    """ считаваем максимальные значения дат для каждого тикера из базы данных ,и потом записываем в отдельную таблицу для быстрого доступа"""
+def history_date_base_update():
+    global db_connection_str
     db_connection = create_engine(db_connection_str)
     df_last_update = pd.read_sql(
         'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
         con=db_connection)  # загрузили список тикеров из базы с последней датой
     df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')
     print('history_date_base_update complite')
+    statistic_data_base(df_last_update)
+    # return df_last_update
+
 
 
 def first_read_sort(linux_path):
@@ -504,32 +497,40 @@ def first_read_sort(linux_path):
 
 
 def teh_an_to_sql(teh_an_df):
-    """записываем значения теханализа в sql базу """
     engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
     try:
         teh_an_df.to_sql(name='teh_an', con=engine, if_exists='append')  # append , replace
         print(f"teh_an save_to MYSQL [{teh_an_df.loc[0]['st_id']}]...... OK")
-    except Exception as _ex:
-        save_exeption_log(linux_path, modul='teh_an_sql',str(_ex))
+    except:
         print(f"Error MYSQL _ teh_an [{teh_an_df.loc[0]['st_id']}]")
+
+def sql_from_command(sql_command): # пробуем для многопоточности сформировать запросы из базы данных
+    global db_connection_str, sql_comm_return
+    db_connection = create_engine(db_connection_str)
+    sql_comm_return.append(pd.read_sql(sql_command, con=db_connection))
 
 
 def pd_df_to_sql(df):
-    """записываем исторические значения в sql базу """
     engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
     try:
         df.to_sql(name='hist_data', con=engine, if_exists='append')  # append , replace
     except Exception as _ex:
-        save_exeption_log(linux_path, modul='hist_sql', str(_ex))
+        save_log(linux_path, str(_ex))
         print('SQL save errorrr \n ', df.shape, df, '\n')
     print(f"save_to MYSQL [{df.loc[0][['st_id', 'market']]}]...... OK")
 
 
 def statistic_data_base(df_last_update):
-    """ модуль для подсчета статистики по базе данных - считаем 2 поздние дату и сколько значений в ними, и записываем в лог"""
-    global linux_path
+    '''
+     в загруженном массиве выделяются уникальные значения и происходит сортировка -
+     и вывподится кол-во вхождения для 2-х последних.
+    :param df_last_update:
+    :return:
+    '''
+
     listing_ll = pd.Series({c: df_last_update[c].unique() for c in df_last_update})
     listing_ll['date_max'].sort()
+    # print(listing_ll)
     save_log(linux_path, "Start statistic calculation")
     for market_s in df_last_update['market'].unique():
         listing_ll = pd.Series(
@@ -545,6 +546,7 @@ linux_path = ''
 db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
 delta_data_koeff = 20
 mysleep, max_wait_days = 0.001, 45
+sql_comm_return = []
 
 def main():
     global linux_path, mysleep
@@ -553,7 +555,6 @@ def main():
     # My constant list
     col_list = my_start()
     global db_connection_str  # = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
-    linux_path = '/opt/1/My_Python/st_US/'
     linux_path = ''
     if os.name == 'nt':  # проверяем из под чего загрузка.
         linux_path = ''
@@ -564,9 +565,28 @@ def main():
         linux_path = '/mnt/1T/opt/gig/My_Python/st_US/'
         history_path = '/mnt/1T/opt/gig/My_Python/st_US/SAVE'
         print("start from LINUX")
-
-
     # end constant list
+
+
+
+    df_last_update = history_updater(linux_path, db_connection_str)  # тестируем загрузку и обновление sql базы
+    # update statistic
+    # df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection_str)
+    # statistic_data_base(df_last_update)
+
+    exit()
+
+    print("UPDATE complite.. start remove dublikate")
+    engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
+    db_connection = create_engine(db_connection_str)  # connect to database
+    engine.execute("ALTER IGNORE TABLE hist_data ADD UNIQUE ( Date, st_id(6))").fetchall()  # удаляем дубликаты в mysql
+    print("MYSQL dublikate delete...OK")
+
+
+if __name__ == "__main__":
+    main()
+
+
 
     # pand_to_csv(linux_path) ##конвертация базы в формат csv для загрузки вручную
 
@@ -587,20 +607,3 @@ def main():
     # my mysql request end###
 
     # load_from_mysql(db_connection_str)
-
-    df_last_update = history_updater(linux_path, db_connection_str)  # тестируем загрузку и обновление sql базы
-    # update statistic
-    df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection_str)
-    statistic_data_base(df_last_update)
-
-    exit()
-
-    print("UPDATE complite.. start remove dublikate")
-    engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
-    db_connection = create_engine(db_connection_str)  # connect to database
-    engine.execute("ALTER IGNORE TABLE hist_data ADD UNIQUE ( Date, st_id(6))").fetchall()  # удаляем дубликаты в mysql
-    print("MYSQL dublikate delete...OK")
-
-
-if __name__ == "__main__":
-    main()

@@ -53,12 +53,25 @@ db_connection = create_engine(db_connection_str)
 2.
 
 '''
-def check_for_time()
-    if datetime.today().time().hour = 23:
-        save_log(f"Time to goto sleep ))), now exit", linux_path)
+
+def history_date_base_update():
+    """ считаваем максимальные значения дат для каждого тикера из базы данных ,и потом записываем в отдельную таблицу для быстрого доступа"""
+    global db_connection
+    df_last_update = pd.read_sql(
+        'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
+        con=db_connection)  # загрузили список тикеров из базы с последней датой
+    df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')
+    print('history_date_base_update complite')
+
+def check_for_time():
+    ''' делаем проевку на время - в 23 часа надо прекратить и отключить обновление,
+    так как запустили в 18 часов, в 2 ночи следующий запуск обновления исторических значений'''
+    if datetime.today().time().hour == 23:
+        save_log(f"Time to go to sleep ))), now exit", linux_path)
         exit()
 
 def sql_base_clear_for_split_list(list_for_replase_data):
+    global db_connection
     if len(list_for_replase_data)>0:
         base_status_df = pd.read_sql('Select * from base_status ;', con=db_connection)
         list_for_replase_df = base_status_df.loc[base_status_df['st_id'].isin(list_for_replase_data)][['st_id', 'date_min']]
@@ -83,6 +96,7 @@ def sql_base_clear_for_split_list(list_for_replase_data):
                 print(list_for_replase_df.iat[index, 1], 'set ZERO to first row error')
                 continue
         save_log(f"SET ZERO DATA to first row of SQL base [{list_sero_set}]", linux_path)
+
     else:
         save_log(f"SPLIT list is empty", linux_path)
 
@@ -95,8 +109,9 @@ def save_log(message, linux_path=''):  # сохраняет в лог файл �
 
 
 def split_check():
+    global db_connection
     # поиск рабочей даты
-    save_log('split check start',linux_path)
+    save_log('split check start--------------------',linux_path)
     market_name = ['United States', 'United States', 'russia']
     us_stock = investpy.get_stocks(country=market_name[0])['symbol']
     find_name = 'AAPL'
@@ -184,3 +199,5 @@ def split_check():
 split_list_return = split_check()
 
 sql_base_clear_for_split_list(split_list_return)
+
+history_date_base_update()  #  по итогам проверки обновляем статус базы

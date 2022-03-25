@@ -1,6 +1,7 @@
 ﻿import mimetypes
 import os
 import smtplib
+import threading
 import time
 from datetime import date
 from datetime import datetime
@@ -18,8 +19,9 @@ from pandas import DataFrame
 from sqlalchemy import create_engine
 from tqdm import tqdm
 from threading import Thread
+import threading
 
-current_version = "22.6"
+current_version = "22.6 - thread"
 
 '''
 делаем массив для анализа ошибок!!
@@ -31,12 +33,14 @@ v22.3 - изменения - оптимизируем код  convert_df_to_np_f
 v22.4 - изменения... добавляем модуль мониторинга.... возможно удалим very_vol, с-200, 
 
 v22.6 - пробуем добавить мультипоточность, кстати - 1--- в процесс подгрузки из sql. 2 ---  в расчеты 
-        и поменять способ добавления строки в датафрейм - делаем через df.loc[len(df)] = [**kwarg]  
+        и поменять способ добавления строки в датафрейм - делаем через df.loc[len(df)] = [**kwarg] -- выделено в отдельную ветку 
+        вводим потоки через словарь - именованные обращения получаются а не порядковые!!!!
         
 
 
         --- требуется - написать программу, которая будет по списку... (список вручную) .. из базы данных вырезать все значения тикера 
-        у которого прошел сплит..  и загружать новые данные за всю историю.
+        у которого прошел сплит..  и загружать новые данные за всю историю  - написали это split_check_update .
+        --- надо добавить config.conf с общими переменными для всех файлов проекта.
   
 '''
 
@@ -315,7 +319,7 @@ def sql_base_make(linux_path, db_connection_str,
                   col_list):  # Модуль загрузки данных из базы mysql и формирования отчетных таблиц
     global branch_name_local
     start_timer = datetime.today()
-    db_connection = create_engine(db_connection_str)  # connect to database
+    db_connection = create_engine(db_connection_str, connect_args={'connect_timeout': 10})  # connect to database
     big_df: DataFrame = pd.DataFrame(columns=list(col_list))
     big_df_US: DataFrame = pd.DataFrame(columns=list(col_list))
     today_date = datetime.today()
@@ -325,8 +329,50 @@ def sql_base_make(linux_path, db_connection_str,
     teh_an_df_nodata = pd.DataFrame(columns=teh_an_list)
     teh_an_df_nodata.loc[len(teh_an_df_nodata)] = 'No DAta'
     big_df_ru = pd.DataFrame(columns=list(col_list))
+    thre_sql_return, thread_link  = {}, {}
+
+    def thread_sql_q(key, sql_command): # многопоточные запросы в sql  через словарь
+        # print(f'----------START load SQL Thread for {key} ')
+        local_start_time = time.time()
+        if key == 'hist_US':
+            if datetime.today().weekday() == 5:
+                try:
+                    thre_sql_return[key] = pd.read_sql(sql_command, con=db_connection)
+                except Exception as _ex:
+                    print(_ex)
+        else:
+            try:
+                thre_sql_return[key] = pd.read_sql(sql_command, con=db_connection)
+            except Exception as _ex:
+                print(f'error thread SQL {_ex}')
+        delta_time = round(time.time() - local_start_time, 2)
+        print('-----END load SQL Thread for ', key, f' time to complite [{delta_time}] sec')
+
+    # команды для запросов в базу данных в многопоточном режиме
+    sql_comm_key = ['tiker_branch', 'base_status', 'teh_an_status', 'hist_SPB', 'hist_RU', 'hist_US', 'teh_an_base']
+    sql_command_list = ['Select * from tiker_branch ;',
+                        'Select * from base_status ;',
+                        'Select st_id, max(date) as date_max from teh_an group by st_id',
+                        f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';',
+                        f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
+                        f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
+                        'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;'
+                        ]
+    for key, index_name in zip(sql_comm_key, sql_command_list):
+        thread_link[key] = threading.Thread(target=thread_sql_q, args=(key, index_name,))
+        # thread_link.append(threading.Thread(target=thread_sql_q, args=(index_name,)))
+
+    thread_link[sql_comm_key[0]].start()
+    thread_link[sql_comm_key[0]].join()
+    thread_link[sql_comm_key[1]].start()
+
+    '''
+    надо придумать как отлавливать содержимое thre_sql_return - данные могут записаться в другом порядке ---- 
+    наверное надо по колонкам определяться - .column -- и смотреть..
+    '''
     # отрасли
-    branch_name = pd.read_sql('Select * from tiker_branch ;', con=db_connection)
+    branch_name = thre_sql_return[sql_comm_key[0]]   ##pd.read_sql(sql_command_list[0], con=db_connection)
+    thread_link[sql_comm_key[2]].start()
     # tiker , name, branch,  curency
     ###
     tab_name = 'history-all.xlsx'  # создаем список собственных тикеров
@@ -340,7 +386,9 @@ def sql_base_make(linux_path, db_connection_str,
     print('[', datetime.today(), ']', "Dataframe load...[OK]")
     save_log(linux_path, "Dataframe load...[OK]")
 
-    df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
+    thread_link[sql_comm_key[1]].join()
+
+    df_last_update = thre_sql_return[sql_comm_key[1]] ###pd.read_sql(sql_command_list[1], con=db_connection)
     last_day_sql = df_last_update.iloc[1]['date_max'].date()
     # if (today_date.date() - last_day_sql).days != 0 :
     #     df_last_update = pd.read_sql(
@@ -349,8 +397,12 @@ def sql_base_make(linux_path, db_connection_str,
     #     df_last_update['today_day'] = datetime.today()
     #     df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')  # append , replace
     #     save_log(linux_path, 'base_status table is Update ')
-    df_last_teh = pd.read_sql('Select st_id, max(date) as date_max from teh_an group by st_id',
-                              con=db_connection)
+
+    thread_link[sql_comm_key[3]].start()
+    thread_link[sql_comm_key[2]].join()
+    thread_link[sql_comm_key[6]].start()
+    df_last_teh = thre_sql_return[sql_comm_key[2]]
+
     '''
      считаем статистику по теханализу 
     '''
@@ -364,7 +416,7 @@ def sql_base_make(linux_path, db_connection_str,
         max_teh_date = min_teh_date # берем для использования минимальную из максимальных
     save_log(linux_path, 'teh_date - [' + str(max_teh_date) + ']')
     max_stick, start_stick_num = len(df_last_update['st_id']), 0
-    max_date = pd.DataFrame.max(df_last_update.date_max[:])
+    max_date = df_last_update.date_max[:].max()
     print('max date for hist_date', max_date)
 
     for indexx in df_last_update['st_id']:
@@ -380,43 +432,39 @@ def sql_base_make(linux_path, db_connection_str,
     statistic_data_base(df_last_update)
     df_out_date.sort_values(by=['date_max'], inplace=True)
     save_log(linux_path, f'len of outdate of hist_date {len(df_out_date)} from {len(df_last_update)} id [{round(100*len(df_out_date)/len(df_last_update), 0)}]%' )
-    df_teh = pd.read_sql(
-        'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
-        con=db_connection)
 
-    print('[', datetime.today(), ']', "load LIST from Mysql...[OK]")
-    print('teh_an shape', df_teh.shape)
-    df_spb = pd.read_sql(
-        f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';',
-        con=db_connection)  ## загружаем базу СПБ ---USD
+    # df_teh = pd.read_sql(
+    #     'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
+    #     con=db_connection)
+
+    # print('[', datetime.today(), ']', "load LIST from Mysql...[OK]")
+    # print('teh_an shape', df_teh.shape)
+
+    thread_link[sql_comm_key[3]].join()
+    thread_link[sql_comm_key[4]].start()
+    df_spb = thre_sql_return[sql_comm_key[3]]
+    ## pd.read_sql(
+        # f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';',
+        # con=db_connection)  ## загружаем базу СПБ ---USD
     print(f'SPB sql load OK [{df_spb.shape}]')
-    df_ru = pd.read_sql(
-        f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
-        con=db_connection)  ## загружаем базу СПБ ---RUB
-    print(f'RU sql load OK [{df_ru.shape}]')
+
+    # df_ru = \
+        # pd.read_sql(
+        # f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
+        # con=db_connection)  ## загружаем базу СПБ ---RUB
+
     if datetime.today().weekday() == 5:
-        df_from_us = pd.read_sql(
-            f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
-            con=db_connection)  ## загружаем базу US
-        print('US sql load OK')
+        thread_link[sql_comm_key[5]].start()
+        #
+        # df_from_us = pd.read_sql(
+        #     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
+        #     con=db_connection)  ## загружаем базу US
+        # print('US sql load OK')
     # считаем актуальность базы данных
-    statistic_data_base(df_last_update)
-    # for market_s in df_last_update['market'].unique():
-    #     listing_ll = pd.Series(
-    #         {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
-    #     for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
-    #         print(
-    #             f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date() )}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
-    #         save_log(linux_path,
-    #                  f"date for [{market_s}]=[{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
+    # statistic_data_base(df_last_update)
 
     save_log(linux_path, "SPB base load--" + str(len(df_spb)) + "...[OK]")
-    save_log(linux_path, "RU base load--" + str(len(df_ru)) + "...[OK]")
-    if datetime.today().weekday() == 5:
-        save_log(linux_path, "US base load--" + str(len(df_from_us)) + "...[OK]")
-    print('[', datetime.today(), ']', "load DATA from Mysql...[OK]")
-    # print(f'SPB base [{len(df_spb[])}') доделать надо..
-    save_log(linux_path, 'load DATA from Mysql...[OK]')
+
     '''
     загружаем базу данных, и список тикеров с последней датой обновления . сортируем по дате. по списку
     тикеров проходимся в базе данных -
@@ -424,10 +472,8 @@ def sql_base_make(linux_path, db_connection_str,
     передаем в функцию
     '''
     df_spb.sort_values(by=['date'], inplace=True)
-    df_ru.sort_values(by=['date'], inplace=True)
-    if datetime.today().weekday() == 5:
-        df_from_us.sort_values(by=['date'], inplace=True)
-    # start_timer = datetime.today()
+    thread_link[sql_comm_key[6]].join()
+    df_teh = thre_sql_return[sql_comm_key[6]]
     print('\n[', datetime.today(), ']', 'stage 1 (SPB).....[Calculating]')
     for ind in tqdm(df_last_update['st_id']):  # считаем рынок СПБ
         if pd.DataFrame.any(branch_name.st_id == ind):
@@ -445,16 +491,22 @@ def sql_base_make(linux_path, db_connection_str,
                                                   col_list,
                                                   branch_name_local,
                                                   df_teh[df_teh.st_id == ind].iloc[0][3:])  # пробуем добавить теханализ
-            except:
+            except Exception as _ex:
+                save_log(linux_path, str(_ex))
                 message = 'SPB error ' + str(ind)
                 save_log(linux_path, message)
                 continue
             # print(my_df)
             big_df = pd.concat([big_df,my_df])
     print('len big df SPB', len(big_df))
+
+    thread_link[sql_comm_key[4]].join()
+    df_ru = thre_sql_return[sql_comm_key[4]]
+    df_ru.sort_values(by=['date'], inplace=True)
+    save_log(linux_path, "RU base load--" + str(len(df_ru)) + "...[OK]")
     print('\n[', datetime.today(), ']', 'stage 2 (RU)......[Calculating]')
     for ind in tqdm(df_last_update['st_id']):  # считаем рынок Московская биржа
-        if pd.DataFrame.any(branch_name.st_id == ind):
+        if (branch_name.st_id == ind).any():
             branch_name_local = branch_name[branch_name.st_id == ind].iloc[0]['branch']
         else:
             branch_name_local = 'NO data'
@@ -464,7 +516,8 @@ def sql_base_make(linux_path, db_connection_str,
                 my_df_ru = convert_df_to_np_from_sql(df_2, branch_name[branch_name.st_id == ind].iloc[0]['name'],
                                                      ind, col_list, branch_name_local,
                                                      df_teh[df_teh.st_id == ind].iloc[0][3:], )
-            except:
+            except Exception as _ex:
+                save_log(linux_path, str(_ex))
                 message = 'RU error ' + str(ind)
                 save_log(linux_path, message)
                 continue
@@ -478,7 +531,15 @@ def sql_base_make(linux_path, db_connection_str,
     dmitry_df = big_df[dmitry_list_for_filter].copy()
     print('\n[', datetime.today(), ']', 'stage 4 (zina)..[Collecting]')
     zina_df = big_df[big_df['tiker'].isin ([*zina_list_spb])].copy()
+
+
     if datetime.today().weekday() == 5:
+
+        thread_link[sql_comm_key[4]].join()
+        df_from_us = thre_sql_return[sql_comm_key[5]]
+
+        df_from_us.sort_values(by=['date'], inplace=True)
+        save_log(linux_path, "US base load--" + str(len(df_from_us)) + "...[OK]")
         print('\n[', datetime.today(), ']', 'stage 5 (US)..[Collecting]')
         for tik_index in tqdm(df_last_update['st_id']):
             if pd.DataFrame.any(branch_name.st_id == tik_index):
@@ -493,13 +554,16 @@ def sql_base_make(linux_path, db_connection_str,
                                                       col_list,
                                                       branch_name_local,
                                                       df_teh[df_teh.st_id == tik_index].iloc[0][3:])  # пробуем добавить теханализ
-                except:
+                except Exception as _ex:
+                    save_log(linux_path, str(_ex))
                     message = 'US error ' + str(tik_index)
                     save_log(linux_path, message)
                     continue
                 big_df_US = big_df_US.append(my_df)  # , list(col_list))
     else:
         print('\n[', datetime.today(), ']', 'today not for stage 5 -- (US), see later -(need 5 day of weekday)')
+
+
 
     name_for_save = str(linux_path) + 'sql_make-' + str(datetime.today().date()) + '.xlsx'
     with pd.ExcelWriter(name_for_save) as writer:  # записываем отчетный файл
@@ -652,6 +716,7 @@ def send_email(name_for_save, name_for_save_crop):
             client_my += str(cli) + ' & '
         return "the message was send - " + client_my
     except Exception as _ex:
+        save_log(linux_path, str(_ex))
         return f"{_ex}\n Check your login"
 
 def dmitry_hist_tab(linux_path, *stope_1):
