@@ -232,7 +232,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
     teh_an_df_nodata.loc[0] = line_1
     # print('teh no data', teh_an_df_nodata)
     print('сегодня...', cur_date.strftime("%Y-%m-%d"))
-    save_log(linux_path, '---------------start update--------------' + '\n')
+    save_log(linux_path, '---------------start update--------------')
     market_name = ['United States', 'United States', 'russia']
     db_connection = create_engine(db_connection_str)  # connect to database
 
@@ -245,13 +245,11 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
         con=db_connection)  # загружаем последние данные по теханализу
     max_date_df = pd.DataFrame.max(df_last_update.iloc[:, 1])
     print('Maximum date is--', max_date_df)
-    # df_last_update['date_max'] = pd.to_datetime(df_last_update.date_max, format='%d-%m-%Y')
-    # df_last_update.to_excel(linux_path + 'base_status.xlsx')
-    # print("save to excel...OK")
     print(f'длина массива {len(df_last_update)}')
 
     save_log(linux_path, 'DataFrame leght ' + str(len(df_last_update)))
     us_stock = investpy.get_stocks(country=market_name[0])['symbol']  # список тикеров в США
+
     for ind in tqdm(range(len(df_last_update))):
         deltadays = (cur_date - df_last_update.iloc[ind, 1]).days
         if deltadays <= 70 + delta_data_koeff*100 and deltadays > 1 and datetime.today().time().hour > 1:
@@ -281,7 +279,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
                         print("USA investpy load error", df_last_update.iloc[ind, 0])
-                        save_exeption_log(linux_path,modul='history' , str(_ex))
+                        save_exeption_log(linux_path,modul='history' , message=str(_ex))
                         if 'Max retries exceeded with' in str(_ex):
                             save_log(linux_path, 'Too litle timedelta, need 2 pause')
                             exit()
@@ -307,7 +305,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                             df_update['Date'] >= datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path,modul='history' , str(_ex))
+                        save_exeption_log(linux_path,modul='history' , message=str(_ex))
                         print("USA YAHHO load error", df_last_update.iloc[ind, 0])
                         continue
                     print('yahho SPB \n', df_update)
@@ -329,7 +327,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         df_update['st_id'] = df_last_update.iloc[ind, 0]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='history',str(_ex))
+                        save_exeption_log(linux_path, modul='history', message=str(_ex))
                         print("USA investpy load error", df_last_update.iloc[ind, 0])
                         continue
                 else:  # иначе лезем в YAHHO
@@ -351,7 +349,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                             df_update['Date'] >= datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path,modul='history' , str(_ex))
+                        save_exeption_log(linux_path,modul='history' ,message= str(_ex))
                         print("USA YAHHO load error", df_last_update.iloc[ind, 0])
                         continue
             elif df_last_update.iloc[ind, 3] == 'RU':
@@ -369,7 +367,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     df_update['st_id'] = df_last_update.iloc[ind, 0]
                     pd_df_to_sql(df_update)
                 except Exception as _ex:
-                    save_exeption_log(linux_path,modul='history' , str(_ex))
+                    save_exeption_log(linux_path, modul='history' ,message= str(_ex))
                     print("RU load error", df_last_update.iloc[ind, 0])
                     continue
             else:
@@ -413,7 +411,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     teh_analis_local = teh_an(indexx, country_teh=market_name[0])
                     print(f"insert USD DATA {indexx}")
                 except Exception as _ex:
-                    save_exeption_log(linux_path, modul='teh_an' , str(_ex))
+                    save_exeption_log(linux_path, modul='teh_an' , message=str(_ex))
                     teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                     teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                     teh_analis_local = teh_an_df_nodata
@@ -425,7 +423,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     teh_analis_local = teh_an(indexx, country_teh=market_name[2])
                     print(f"insert RU DATA {indexx}")
                 except Exception as _ex:
-                    save_exeption_log(linux_path,modul='teh_an' , str(_ex))
+                    save_exeption_log(linux_path,modul='teh_an' , message=str(_ex))
                     teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                     teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                     teh_analis_local = teh_an_df_nodata
@@ -441,7 +439,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         print(f"update USD DATA {indexx}")
                         update_teh +=1
                     except Exception as _ex:
-                        save_exeption_log(linux_path,modul='teh_an', str(_ex))
+                        save_exeption_log(linux_path,modul='teh_an', message=str(_ex))
                         teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                         teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                         teh_analis_local = teh_an_df_nodata
@@ -453,7 +451,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         print(f"update RU DATA {indexx}")
                         update_teh += 1
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='teh_an',str(_ex))
+                        save_exeption_log(linux_path, modul='teh_an',message=str(_ex))
                         teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                         teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                         teh_analis_local = teh_an_df_nodata
@@ -510,7 +508,7 @@ def teh_an_to_sql(teh_an_df):
         teh_an_df.to_sql(name='teh_an', con=engine, if_exists='append')  # append , replace
         print(f"teh_an save_to MYSQL [{teh_an_df.loc[0]['st_id']}]...... OK")
     except Exception as _ex:
-        save_exeption_log(linux_path, modul='teh_an_sql',str(_ex))
+        save_exeption_log(linux_path, modul='teh_an_sql',message=str(_ex))
         print(f"Error MYSQL _ teh_an [{teh_an_df.loc[0]['st_id']}]")
 
 
@@ -520,7 +518,7 @@ def pd_df_to_sql(df):
     try:
         df.to_sql(name='hist_data', con=engine, if_exists='append')  # append , replace
     except Exception as _ex:
-        save_exeption_log(linux_path, modul='hist_sql', str(_ex))
+        save_exeption_log(linux_path, modul='hist_sql', message=str(_ex))
         print('SQL save errorrr \n ', df.shape, df, '\n')
     print(f"save_to MYSQL [{df.loc[0][['st_id', 'market']]}]...... OK")
 
