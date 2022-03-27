@@ -21,6 +21,11 @@ from tqdm import tqdm
 from threading import Thread
 import threading
 
+from pr_config import * ## пробуем подгрузить свои данные
+from sec_config import *
+
+
+
 current_version = "22.6 - thread"
 
 '''
@@ -40,27 +45,26 @@ v22.6 - пробуем добавить мультипоточность, кст
 
         --- требуется - написать программу, которая будет по списку... (список вручную) .. из базы данных вырезать все значения тикера 
         у которого прошел сплит..  и загружать новые данные за всю историю  - написали это split_check_update .
-        --- надо добавить config.conf с общими переменными для всех файлов проекта.
+        --- надо добавить pr_config.py с общими переменными для всех файлов проекта.
   
 '''
 
 
-def my_hist_data_from_spb_list_update(db_connection_str):
+def my_hist_data_from_spb_list_update(sql_login):
     '''подпрограмма изменения market c US на SPB в базе данных на основании ListingSecurityList.csv
     1) необходимо просто подсунуть ListingSecurityList.csv и все (проверить не поменялось ли название столбца с
     названиями тикеров... дальше все будет все само.
     '''
-    # db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
-    save_log(linux_path='', message='start update SPB list update from CSV file_____')
-    db_connection = create_engine(db_connection_str)  # connect to database
+    save_log(prj_path='', message='start update SPB list update from CSV file_____')
+    db_connection = create_engine(sql_login)  # connect to database
     df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
     df_spb = pd.read_csv('ListingSecurityList.csv', delimiter=';')
     df_spb = df_spb[df_spb['s_currency_kotir'] == 'USD']['s_RTS_code']
-    save_log(linux_path='', message='all data from file load --')
+    save_log(prj_path='', message='all data from file load --')
     print(f"spb birga {len(df_spb)}")
     spb_df_last = df_last_update[df_last_update['market'] == 'US']['st_id']
     print(f'my df {len(spb_df_last)}')
-    save_log(linux_path='', message=f'tiker on SPB{len(df_spb)}, tiker on my sql_base{len(spb_df_last)}')
+    save_log(prj_path='', message=f'tiker on SPB{len(df_spb)}, tiker on my sql_base{len(spb_df_last)}')
     listNew = []
     for index in df_spb:
         if spb_df_last.isin([index]).any():
@@ -73,8 +77,8 @@ def my_hist_data_from_spb_list_update(db_connection_str):
             db_connection.execute(f"update hist_data set market='SPB' where st_id = '{index}';")
             print(index)
         print(f"UPdate Complite. {len(listNew)} st_id market from [US] to [SPB]")
-        save_log(linux_path='', message=f"UPdate Complite. {len(listNew)} st_id market from [US] to [SPB]")
-        save_log(linux_path='', message= f"writen next tiker {listNew}")
+        save_log(prj_path='', message=f"UPdate Complite. {len(listNew)} st_id market from [US] to [SPB]")
+        save_log(prj_path='', message= f"writen next tiker {listNew}")
 
 def insert_history_date_into_sql():
     """
@@ -82,11 +86,12 @@ def insert_history_date_into_sql():
     вставляем под market US
     :return:
     """
+    
     market_name = ['United States', 'United States', 'russia']
     stocks_us_investpy = investpy.get_stocks(country=market_name[0])['symbol']
     df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
     # df_last_update = pd.read_excel('base_status.xlsx')['st_id']
-    save_log(linux_path='',message= 'insert new tiker from investpy.get_stocks to SQL history_date')
+    save_log(prj_path='',message= 'insert new tiker from investpy.get_stocks to SQL history_date')
     df = df_last_update.to_numpy().tolist()
     my_2_list = stocks_us_investpy.to_numpy().tolist()
     my_only_US_df_list = []
@@ -102,7 +107,7 @@ def insert_history_date_into_sql():
     print(f"my list len = {len(my_only_US_df_list)}")
     print(f'all US list len = {len(my_2_list)}')
     my_only_US_df_list.sort()
-    save_log(linux_path='',message= f'find {len(my_only_US_df_list)}, try add {my_only_US_df_list}')
+    save_log(prj_path='',message= f'find {len(my_only_US_df_list)}, try add {my_only_US_df_list}')
     print(my_only_US_df_list)
     from_date_m, to_date_m = '4/02/2020', '6/02/2020'
     successfully_list = []
@@ -119,9 +124,9 @@ def insert_history_date_into_sql():
             print(f'Error [{only_us_index}] loading')
             continue
         pd_df_to_sql(df_update)
-    save_log(linux_path='', message= f'LEn of successfully list is [{len(successfully_list)}], apply [{round(100* len(successfully_list)/len(my_only_US_df_list), 0)}]%,  added list-- {successfully_list}')
+    save_log(prj_path='', message= f'LEn of successfully list is [{len(successfully_list)}], apply [{round(100* len(successfully_list)/len(my_only_US_df_list), 0)}]%,  added list-- {successfully_list}')
 
-def stock_name_table(linux_path):
+def stock_name_table(prj_path):
     ru_stos1 = investpy.stocks.get_stocks(country='russia')
     ru_stos = ru_stos1[['name', 'symbol']]
     mmm = np.zeros((len(ru_stos), 1)) + 3
@@ -149,7 +154,7 @@ def stock_name_table(linux_path):
     big_df = big_df.append(other=us_stos_usa, ignore_index=True)
     # print('all', big_df)
 
-    with pd.ExcelWriter(linux_path + 'my_all_st.xlsx') as writer:
+    with pd.ExcelWriter(prj_path + 'my_all_st.xlsx') as writer:
         big_df.to_excel(writer, sheet_name='all')  ### работает!!!
     # big_df.to_csv('my_test_all_st.csv', sep=';', encoding='cp1251', line_terminator='/n', index=True)
 
@@ -165,10 +170,10 @@ def year_live_stock():  # df, stick_id, st_name): #
     df_date = pd.DataFrame(
         columns=['date_start_now', 'date_end_now', 'date_start_12', 'date_end_12'])  # создали датафрейм со всеми датами
     stick_id, st_name = 'AAPL', 'Apple'
-    db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
+
     df_from_sql = pd.read_sql(
         'Select date, high, low, close, st_id, Currency from hist_data  WHERE Currency=\'USD\' and st_id = \'AAPL\';',
-        con=db_connection_str)  ## загружаем базу СПБ ---USD
+        con=sql_login)  ## загружаем базу СПБ ---USD
     k, y_q, m_d, m_m = 0, 0, 0, 0
     cur_date = datetime.today()
     for i in range(0, 12):
@@ -214,20 +219,20 @@ def year_live_stock():  # df, stick_id, st_name): #
 
     exit()
 
-def save_history(linux_path, big_df_table):
-    big_df_table.to_excel(linux_path + 'history_data.xlsx')
+def save_history(prj_path, big_df_table):
+    big_df_table.to_excel(prj_path + 'history_data.xlsx')
 
-def save_log(linux_path, message):  # сохраняет в лог файл сообщение..
-    f = open(linux_path + 'make_from_sql.log', mode='a')
+def save_log(prj_path, message):  # сохраняет в лог файл сообщение..
+    f = open(prj_path + 'make_from_sql.log', mode='a')
     lines = '[' + str(datetime.today()) + '] ' + str(message + ' v'+ current_version)
     f.writelines(lines + '\n')
     f.close()
     # print(lines+ '\n')
 
-def input_tables_append(db_connection_str, linux_path):
-    st_name = pd.read_excel(linux_path + 'my_all_st.xlsx', index_col=0)
-    branch_name = pd.read_excel(linux_path + 'tiker-branch.xlsx', index_col=0)
-    # db_connection = create_engine(db_connection_str)
+def input_tables_append(sql_login, prj_path):
+    st_name = pd.read_excel(prj_path + 'my_all_st.xlsx', index_col=0)
+    branch_name = pd.read_excel(prj_path + 'tiker-branch.xlsx', index_col=0)
+    # db_connection = create_engine(sql_login)
     # df_last_update = pd.read_sql('Select st_id, max(date) as date_max, Currency  from hist_data group by st_id',                                 con=db_connection)
     col_list_m = ['name', 'tiker', 'branch', 'currency', 'market', 'max_date', 'min_date', 'status_table']
     print(st_name.head(3), len(st_name))
@@ -301,7 +306,7 @@ def convert_df_to_np_from_sql(df1, stok_name, st_inv, col_list, branch,
 
 
 def statistic_data_base(df_last_update):
-    global linux_path
+    global prj_path
     ''' подсчет статистики актуальности базы данных, с охранением результата в лог'''
     for market_s in df_last_update['market'].unique():
         listing_ll = pd.Series(
@@ -311,15 +316,15 @@ def statistic_data_base(df_last_update):
         for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
             print(
                 f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
-            save_log(linux_path,
+            save_log(prj_path,
                      f"date for [{market_s}]=[{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
 
 
-def sql_base_make(linux_path, db_connection_str,
+def sql_base_make(prj_path, sql_login,
                   col_list):  # Модуль загрузки данных из базы mysql и формирования отчетных таблиц
     global branch_name_local
     start_timer = datetime.today()
-    db_connection = create_engine(db_connection_str, connect_args={'connect_timeout': 10})  # connect to database
+    db_connection = create_engine(sql_login, connect_args={'connect_timeout': 10})  # connect to database
     big_df: DataFrame = pd.DataFrame(columns=list(col_list))
     big_df_US: DataFrame = pd.DataFrame(columns=list(col_list))
     today_date = datetime.today()
@@ -332,7 +337,6 @@ def sql_base_make(linux_path, db_connection_str,
     thre_sql_return, thread_link  = {}, {}
 
     def thread_sql_q(key, sql_command): # многопоточные запросы в sql  через словарь
-        # print(f'----------START load SQL Thread for {key} ')
         local_start_time = time.time()
         if key == 'hist_US':
             if datetime.today().weekday() == 5:
@@ -360,7 +364,6 @@ def sql_base_make(linux_path, db_connection_str,
                         ]
     for key, index_name in zip(sql_comm_key, sql_command_list):
         thread_link[key] = threading.Thread(target=thread_sql_q, args=(key, index_name,))
-        # thread_link.append(threading.Thread(target=thread_sql_q, args=(index_name,)))
 
     thread_link[sql_comm_key[0]].start()
     thread_link[sql_comm_key[0]].join()
@@ -375,16 +378,11 @@ def sql_base_make(linux_path, db_connection_str,
     thread_link[sql_comm_key[2]].start()
     # tiker , name, branch,  curency
     ###
-    tab_name = 'history-all.xlsx'  # создаем список собственных тикеров
-    client_tiker_list_tab = pd.read_excel(str(linux_path + tab_name), sheet_name='SPB',
-                                          index_col=0)  ### кстати тут кривое название
-    dmitry_list_spb = set(client_tiker_list_tab.tiker[pd.DataFrame.notna(client_tiker_list_tab.tiker)])
-    zina_list_spb = {'AA', 'APA', 'BA', 'FSLR', 'INTC', 'NEE', 'PBF', 'SPR', 'LTHM', 'SPCE', 'UAL', 'NVTA', 'VIR',
-                     'NVDA', 'NDAQ', 'U'}
+
     print(f'D dataframe list  created [{len(dmitry_list_spb)}]')
     print(f'Z dataframe list  created [{len(zina_list_spb)}]')
     print('[', datetime.today(), ']', "Dataframe load...[OK]")
-    save_log(linux_path, "Dataframe load...[OK]")
+    save_log(prj_path, "Dataframe load...[OK]")
 
     thread_link[sql_comm_key[1]].join()
 
@@ -396,7 +394,7 @@ def sql_base_make(linux_path, db_connection_str,
     #         con=db_connection)  # загрузили список тикеров из базы с последней датой
     #     df_last_update['today_day'] = datetime.today()
     #     df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')  # append , replace
-    #     save_log(linux_path, 'base_status table is Update ')
+    #     save_log(prj_path, 'base_status table is Update ')
 
     thread_link[sql_comm_key[3]].start()
     thread_link[sql_comm_key[2]].join()
@@ -410,11 +408,11 @@ def sql_base_make(linux_path, db_connection_str,
     teh_full = round(len(df_last_teh[df_last_teh.date_max == max_teh_date]) / len(df_last_teh), 2)
     min_teh_date = pd.DataFrame.min(df_last_teh.date_max[:])
     print('teh_Full', teh_full * 100, '% Have max date')
-    save_log(linux_path, 'teh_full ' + str(teh_full * 100) + '% have MAX date' )
+    save_log(prj_path, 'teh_full ' + str(teh_full * 100) + '% have MAX date' )
     if teh_full != 1:
-        save_log(linux_path, 'base teh analis not full - only ' + str(teh_full * 100) + ' %')
+        save_log(prj_path, 'base teh analis not full - only ' + str(teh_full * 100) + ' %')
         max_teh_date = min_teh_date # берем для использования минимальную из максимальных
-    save_log(linux_path, 'teh_date - [' + str(max_teh_date) + ']')
+    save_log(prj_path, 'teh_date - [' + str(max_teh_date) + ']')
     max_stick, start_stick_num = len(df_last_update['st_id']), 0
     max_date = df_last_update.date_max[:].max()
     print('max date for hist_date', max_date)
@@ -424,14 +422,14 @@ def sql_base_make(linux_path, db_connection_str,
             start_stick_num += 1
             # print(indexx)
     message = f'hist_data tiker smoler [{max_old_days}] days [{start_stick_num}], all tikers [{max_stick}], part=[{round(100*start_stick_num / max_stick, 1)}] %'
-    save_log(linux_path, message)
+    save_log(prj_path, message)
     print(message)
     df_out_date = df_last_update[df_last_update.date_max <= max_date - timedelta(days=max_old_days)]
     df_last_update = df_last_update[df_last_update.date_max > max_date - timedelta(
         days=max_old_days)]  ### отрезаем все тикеры , для которых данные старые!!!!!!!!! --- так можно все порезать так, что считать будет нечего
     statistic_data_base(df_last_update)
     df_out_date.sort_values(by=['date_max'], inplace=True)
-    save_log(linux_path, f'len of outdate of hist_date {len(df_out_date)} from {len(df_last_update)} id [{round(100*len(df_out_date)/len(df_last_update), 0)}]%' )
+    save_log(prj_path, f'len of outdate of hist_date {len(df_out_date)} from {len(df_last_update)} id [{round(100*len(df_out_date)/len(df_last_update), 0)}]%' )
 
     # df_teh = pd.read_sql(
     #     'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
@@ -463,7 +461,7 @@ def sql_base_make(linux_path, db_connection_str,
     # считаем актуальность базы данных
     # statistic_data_base(df_last_update)
 
-    save_log(linux_path, "SPB base load--" + str(len(df_spb)) + "...[OK]")
+    save_log(prj_path, "SPB base load--" + str(len(df_spb)) + "...[OK]")
 
     '''
     загружаем базу данных, и список тикеров с последней датой обновления . сортируем по дате. по списку
@@ -492,9 +490,9 @@ def sql_base_make(linux_path, db_connection_str,
                                                   branch_name_local,
                                                   df_teh[df_teh.st_id == ind].iloc[0][3:])  # пробуем добавить теханализ
             except Exception as _ex:
-                save_log(linux_path, str(_ex))
+                save_log(prj_path, str(_ex))
                 message = 'SPB error ' + str(ind)
-                save_log(linux_path, message)
+                save_log(prj_path, message)
                 continue
             # print(my_df)
             big_df = pd.concat([big_df,my_df])
@@ -503,7 +501,7 @@ def sql_base_make(linux_path, db_connection_str,
     thread_link[sql_comm_key[4]].join()
     df_ru = thre_sql_return[sql_comm_key[4]]
     df_ru.sort_values(by=['date'], inplace=True)
-    save_log(linux_path, "RU base load--" + str(len(df_ru)) + "...[OK]")
+    save_log(prj_path, "RU base load--" + str(len(df_ru)) + "...[OK]")
     print('\n[', datetime.today(), ']', 'stage 2 (RU)......[Calculating]')
     for ind in tqdm(df_last_update['st_id']):  # считаем рынок Московская биржа
         if (branch_name.st_id == ind).any():
@@ -517,9 +515,9 @@ def sql_base_make(linux_path, db_connection_str,
                                                      ind, col_list, branch_name_local,
                                                      df_teh[df_teh.st_id == ind].iloc[0][3:], )
             except Exception as _ex:
-                save_log(linux_path, str(_ex))
+                save_log(prj_path, str(_ex))
                 message = 'RU error ' + str(ind)
-                save_log(linux_path, message)
+                save_log(prj_path, message)
                 continue
             big_df_ru = pd.concat([big_df_ru,my_df_ru])
     print('\n[', datetime.today(), ']', 'stage 3 (dmitry)..[Collecting]')
@@ -535,11 +533,11 @@ def sql_base_make(linux_path, db_connection_str,
 
     if datetime.today().weekday() == 5:
 
-        thread_link[sql_comm_key[4]].join()
+        thread_link[sql_comm_key[5]].join()
         df_from_us = thre_sql_return[sql_comm_key[5]]
 
         df_from_us.sort_values(by=['date'], inplace=True)
-        save_log(linux_path, "US base load--" + str(len(df_from_us)) + "...[OK]")
+        save_log(prj_path, "US base load--" + str(len(df_from_us)) + "...[OK]")
         print('\n[', datetime.today(), ']', 'stage 5 (US)..[Collecting]')
         for tik_index in tqdm(df_last_update['st_id']):
             if pd.DataFrame.any(branch_name.st_id == tik_index):
@@ -555,9 +553,9 @@ def sql_base_make(linux_path, db_connection_str,
                                                       branch_name_local,
                                                       df_teh[df_teh.st_id == tik_index].iloc[0][3:])  # пробуем добавить теханализ
                 except Exception as _ex:
-                    save_log(linux_path, str(_ex))
+                    save_log(prj_path, str(_ex))
                     message = 'US error ' + str(tik_index)
-                    save_log(linux_path, message)
+                    save_log(prj_path, message)
                     continue
                 big_df_US = big_df_US.append(my_df)  # , list(col_list))
     else:
@@ -565,7 +563,7 @@ def sql_base_make(linux_path, db_connection_str,
 
 
 
-    name_for_save = str(linux_path) + 'sql_make-' + str(datetime.today().date()) + '.xlsx'
+    name_for_save = str(prj_path) + 'sql_make-' + str(datetime.today().date()) + '.xlsx'
     with pd.ExcelWriter(name_for_save) as writer:  # записываем отчетный файл
         big_df.to_excel(writer, sheet_name='SPB')  # считаем весь рынок SPB
         big_df_ru.to_excel(writer, sheet_name='RU')  # считаем весь рынок RU
@@ -578,45 +576,16 @@ def sql_base_make(linux_path, db_connection_str,
 
     print('\n[', datetime.today(), ']', 'EXCEL file .... [SAVED]')
     print('\n[', datetime.today(), ']', (datetime.today() - start_timer).seconds, '[sec]')
-    save_log(linux_path, '\n[' + str(datetime.today()) + ']' + str((datetime.today() - start_timer).seconds) + '[sec]')
+    save_log(prj_path, '\n[' + str(datetime.today()) + ']' + str((datetime.today() - start_timer).seconds) + '[sec]')
     return name_for_save
 
-def my_start():  # исходные данные - константы
-    col_list = ['tiker', 'name', 'branch', 'today_close',
-                'mean_min_dek1', 'mean_min_dek2', 'mean_min_dek3', 'mean_min_dek4',
-                'mean_min_dek5', 'mean_min_dek6', 'mean_min_dek7', 'mean_min_dek8',
-                'mean_min_pr_dek1',
-                'mean_min_pr_dek2', 'mean_min_pr_dek3', 'mean_min_pr_dek4', 'mean_min_pr_dek5', 'mean_min_pr_dek6',
-                'mean_min_pr_dek7', 'mean_min_pr_dek8',
-                'min_pr_delta_1_2', 'min_pr_delta_2_3', 'min_pr_delta_3_4', 'min_pr_delta_4_5', 'min_pr_delta_5_6',
-                'min_pr_delta_6_7', 'min_pr_delta_7_8',
-                'max_dek1', 'max_dek2', 'max_dek3', 'max_dek4', 'max_dek5',
-                'max_dek6', 'max_dek7', 'max_dek8',
-                'max_pr_dek1', 'max_pr_dek2', 'max_pr_dek3', 'max_pr_dek4',
-                'max_pr_dek5', 'max_pr_dek6', 'max_pr_dek7', 'max_pr_dek8',
-                'max_pr_delta_1_2', 'max_pr_delta_2_3', 'max_pr_delta_3_4', 'max_pr_delta_4_5', 'max_pr_delta_5_6',
-                'max_pr_delta_6_7', 'max_pr_delta_7_8',
-                'min_y', 'max_y', 'today_y_pr_min',
-                'today_y_pr_max', 'day_start', 'day_close',
-                # """,
-                'teh_daily_sel', 'teh_daily_buy', 'teh_weekly_sel', 'teh_weekly_buy', 'teh_monthly_sell',
-                'teh_monthly_buy', 'daily_sma_signal 200', 'daily_ema_signal 200', 'weekly_sma_signal 200',
-                'weekly_ema_signal 200', 'monthly_sma_signal 200', 'monthly_ema_signal 200', 'EPS', 'P_E',
-                'm1_max', 'm1_min', 'm3_max', 'm3_min', ' m6_max', 'm6_min', 'year1_max', 'year1_min', 'pr_30_day_max',
-                'pr_30_day_min',
-                'pr_90_day_max', 'pr_90_day_min',
-                'pr_6_m_max', 'pr_6_m_min', 'pr_1y_max', 'pr_1y_min'
 
-                ]
-    # """
-    return col_list
-
-def excel_format(linux_path, name_for_save, history_path):  # форматирование отчетного файла после записи
+def excel_format(prj_path, name_for_save, history_path):  # форматирование отчетного файла после записи
     redFill = PatternFill(start_color='FFFF0000',
                           end_color='FFFF0000',
                           fill_type='solid')
 
-    wb_help = load_workbook(filename=str(linux_path) + 'df_help_06.03.2022.xlsx')  # шаблон форматирования
+    wb_help = load_workbook(filename=str(prj_path) + xlsx_sample)  # шаблон форматирования
     shit_n = wb_help.sheetnames
     ws = wb_help.active
     print('[', datetime.today(), ']', 'EXCEL format [START]')
@@ -644,7 +613,7 @@ def excel_format(linux_path, name_for_save, history_path):  # форматиро
 
         # ws.freeze_panes = 'E7'
     # print(f'Now remove old file [{os.pardir} {name_for_save}]')
-    # save_log(linux_path, str(f'Now remove old file [{os.pardir} {name_for_save}]'))
+    # save_log(prj_path, str(f'Now remove old file [{os.pardir} {name_for_save}]'))
     # os.remove(name_for_save)
     for s_name in shit_n:
         sheet = wb_help[s_name]
@@ -653,15 +622,15 @@ def excel_format(linux_path, name_for_save, history_path):  # форматиро
         print(s_name, m_row, m_col)
 
     cur_date_for_file_name = str(date.today().day) + '-' + str(date.today().month) + '-' + str(date.today().year)
-    name_for_save = str(linux_path) + "d-отчет-" + cur_date_for_file_name + ".xlsx"
+    name_for_save = str(prj_path) + "d-отчет-" + cur_date_for_file_name + ".xlsx"
     wb_help.save(name_for_save)
-    save_log(linux_path, str(wb_help.sheetnames))
+    save_log(prj_path, str(wb_help.sheetnames))
     wb_help.save(str(history_path) + "d-отчет-" + cur_date_for_file_name + ".xlsx")  # save to Yandex drive
     pfd = wb_help['D_list']
     wb_help.remove(pfd)
     pfd = wb_help["Z_list"]
     wb_help.remove(pfd)
-    save_log(linux_path, str(wb_help.sheetnames))
+    save_log(prj_path, str(wb_help.sheetnames))
     name_for_save_crop = str(history_path) + "all-отчет-" + cur_date_for_file_name + ".xlsx"
     wb_help.save(name_for_save_crop)
 
@@ -670,9 +639,9 @@ def excel_format(linux_path, name_for_save, history_path):  # форматиро
 
     return name_for_save, name_for_save_crop
 
-def pd_df_to_sql(df, db_connection_str, st_name, ind,
+def pd_df_to_sql(df, sql_login, st_name, ind,
                  len_max):  # запись исторических значений при update с investpy  в базу MYSQL
-    engine = create_engine(db_connection_str)
+    engine = create_engine(sql_login)
     try:
         df.to_sql(name='hist_data', con=engine, if_exists='append')  # append , replace
     except:
@@ -683,20 +652,14 @@ def send_email(name_for_save, name_for_save_crop):
     для отправки отбираются два файла - name_for_save_crop, name_for_save, склеиваются в один пакет 
     и отправляется по списку client_mail_vip
     """
-    file = open('secret.pass', 'r', encoding='ISO-8859-1')
-    line_list = file.readlines()
-    sender, password = line_list[0][:-1], line_list[1][:-1]
-    client_mail_vip = ['volemor@yandex.ru', 'azinaidav@mail.ru',
-                       'krotar@mail.ru', 'p.trubitsyn7@yandex.ru']# ,  'dom_teh@mail.ru']# 'shanaev_av@mail.ru' ,'fedorov.efrem@gmail.com' ]
-    client_mail = ['p.trubitsyn7@yandex.ru']
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
     file_name = [name_for_save_crop, name_for_save]
-    client_my = ' '
+    client_my = []
     try:
-        server.login(sender, password)
+        server.login(mail_login, mail_pass)
         msg = MIMEMultipart()
-        msg["From"] = sender
+        msg["From"] = mail_login
         msg["Subject"] = "Новый отчет " + str(datetime.today().strftime("%Y-%m-%d") + " для моих подписчиков")
         for file in file_name:
             filename = os.path.basename(file)
@@ -711,44 +674,38 @@ def send_email(name_for_save, name_for_save_crop):
         а потом суммарное письмо по второму'''
         for cli in tqdm(client_mail_vip):
             msg['To'] = cli
-            server.sendmail(sender, cli, msg.as_string())
+            server.sendmail(mail_login, cli, msg.as_string())
             time.sleep(2)
-            client_my += str(cli) + ' & '
-        return "the message was send - " + client_my
+            client_my.append(cli)
+        return f"the message was send -{client_my} "
     except Exception as _ex:
-        save_log(linux_path, str(_ex))
+        save_log(prj_path, str(_ex))
         return f"{_ex}\n Check your login"
 
-def dmitry_hist_tab(linux_path, *stope_1):
+def dmitry_hist_tab(prj_path, *stope_1):
     tab_name = 'history-all.xlsx'
-    dmitry_tab = pd.read_excel(str(linux_path + tab_name), sheet_name='SBP',
+    dmitry_tab = pd.read_excel(str(prj_path + tab_name), sheet_name='SBP',
                                index_col=0)  ### кстати тут кривое название
     print(dmitry_tab.tiker[pd.DataFrame.notna(dmitry_tab.tiker)])
     dmitry_list_spb = dmitry_tab.tiker[pd.DataFrame.notna(dmitry_tab.tiker)]
 
-max_old_days = 25
-my_start_date = '2020-02-01'
-linux_path = ''
+
 
 def main():
-    global linux_path, my_start_date
+    global prj_path, history_path
     print(f'программа расчета таблицы по стикерам v.{current_version}' )
     start_timer = datetime.today()
     print(f'[{start_timer}] START')
     # My constant list
-    col_list = my_start()
-    max_old_days = 25
-    my_start_date = '2020-02-01'
-    db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
     db_connection_hist_bks = 'mysql+pymysql://python:python@192.168.0.118/history_bks'  # создана база данных history_bks - для сохранения  и работы со сделками,,, надо сделать таблицу, для загрузки итоговой сводной таблицы
     if os.name == 'nt':
-        linux_path = ''
-        history_path = 'D:\\YandexDisk\\корень\\отчеты\\'
+        prj_path = path_win
+        history_path = path_history_win
     else:
-        linux_path = '/mnt/1T/opt/gig/My_Python/st_US/'
-        history_path = '/mnt/1T/opt/gig/My_Python/st_US/SAVE/'
+        prj_path = path_linux
+        history_path = path_history_linux
     ''' end constant list '''
-    save_log(linux_path, '------------ start normal ------------' )
+    save_log(prj_path, '------------ start normal ------------' )
     # TEST MODUL
 
     # кстати выявлено, что в базе данных есть тикеры , есть они в my_st_list, но в итоговой базе они пропадают.
@@ -760,26 +717,26 @@ def main():
     # End TEST MODUL
     # pd_df_to_sql(big_df_table)
 
-    # history_updater(linux_path, db_connection_str)  # запускаем загрузку и обновление sql базы делает --- отдельный скрипт
-    name_for_save = sql_base_make(linux_path, db_connection_str, col_list)  # делаем расчеты для заполнения таблицы
-    name_for_save, name_for_save_crop = excel_format(linux_path, name_for_save, history_path)  # форматируем таблицу
+    # history_updater(prj_path, sql_login)  # запускаем загрузку и обновление sql базы делает --- отдельный скрипт
+    name_for_save = sql_base_make(prj_path, sql_login, col_list)  # делаем расчеты для заполнения таблицы
+    name_for_save, name_for_save_crop = excel_format(prj_path, name_for_save, history_path)  # форматируем таблицу
 
     print(send_email(name_for_save, name_for_save_crop))  # отправляем по почте
     # remove old file after sendmail
     # os.remove(name_for_save)
     # os.remove(name_for_save_crop)
-    # save_log(linux_path, str(f'Now remove old file [{os.pardir} {name_for_save}]'))
-    # save_log(linux_path, str(f'Now remove old file [{os.pardir} {name_for_save_crop}]'))
+    # save_log(prj_path, str(f'Now remove old file [{os.pardir} {name_for_save}]'))
+    # save_log(prj_path, str(f'Now remove old file [{os.pardir} {name_for_save_crop}]'))
     message = " all Calculating for [" + str((datetime.today() - start_timer).seconds) + '] sec'
     print(datetime.today(), message)
-    save_log(linux_path, message)
+    save_log(prj_path, message)
     exit()
 
     # дальше пошло старье....
 
     # exit()
-    # stock_name_table(linux_path) # склеиваем все тикеры в одну таблицу  stock_name для базы данных - и кладем в  .csv  .xlsx
-    # history_data(linux_path)# загружаем тикеры из таблицы с market_id и загружаем в таблицу stock_hist_data
+    # stock_name_table(prj_path) # склеиваем все тикеры в одну таблицу  stock_name для базы данных - и кладем в  .csv  .xlsx
+    # history_data(prj_path)# загружаем тикеры из таблицы с market_id и загружаем в таблицу stock_hist_data
 
 
 if __name__ == "__main__":
