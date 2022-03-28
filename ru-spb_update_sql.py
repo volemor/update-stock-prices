@@ -223,7 +223,7 @@ def history_data(linux_path):  # сохраняем все  -- вроде раб
 def history_updater(linux_path, db_connection_str):  # делаем обновление базы mysql
     cur_date = datetime.today()
     time_count = []
-    global mysleep, stock_not_found_teh_an, linux_path
+    global mysleep, stock_not_found_teh_an
     def sleep_timer_regulator():
         '''пробуем регулировать паузу между обращениями за данными налету'''
         global mysleep
@@ -391,7 +391,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
             # print(df_update)
         sleep_timer_regulator()
         if len(time_count) == 300:
-        ''' try to find and save timedalta between operation '''
+            ''' try to find and save timedalta between operation '''
             delta_time = []
             for ind in range(300-1):
                 delta = round(time_count[ind + 1] - time_count[ind], 2)
