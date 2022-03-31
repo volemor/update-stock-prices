@@ -74,9 +74,11 @@ def save_log(linux_path, message):
 
 def save_exeption_log (linux_path, modul, message):
     '''записываем в файл логи ошибок с указанием модуля из которого был вызов '''
-    global stock_not_found_teh_an
+    global stock_not_found_teh_an, no_data_fetched_hist_yahho
     if 'not found' in message and modul == 'teh_an':
         stock_not_found_teh_an.append( message.split()[2].upper())
+    elif 'No data fetched' in message:
+        no_data_fetched_hist_yahho.append(message.split()[5])
     if message !='0' or 'Date' not in message or 'signal' not in message:
         f = open(linux_path + 'update_extention.log', mode='a')
         lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
@@ -223,7 +225,8 @@ def history_data(linux_path):  # сохраняем все  -- вроде раб
 def history_updater(linux_path, db_connection_str):  # делаем обновление базы mysql
     cur_date = datetime.today()
     time_count = []
-    global mysleep, stock_not_found_teh_an
+    global mysleep, stock_not_found_teh_an, no_data_fetched_hist_yahho
+
     def sleep_timer_regulator():
         '''пробуем регулировать паузу между обращениями за данными налету'''
         global mysleep
@@ -244,7 +247,6 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
               'No DAta', 'No DAta', 'No DAta', 0, 0]
     teh_an_df_nodata = pd.DataFrame(columns=teh_an_list)
     teh_an_df_nodata.loc[0] = line_1
-    # print('teh no data', teh_an_df_nodata)
     print('сегодня...', cur_date.strftime("%Y-%m-%d"))
     save_log(linux_path, '---------------start update--------------')
     market_name = ['United States', 'United States', 'russia']
@@ -399,10 +401,11 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
             delta_f = pd.Series(delta_time)
             save_log(linux_path, f'mean of timer_count is [{delta_f.mean().round(2)}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
             f = open(linux_path + 'timer.log', mode='a')
-            f.writelines(f'today [{datetime.today()}] -'+ str(delta_f) + '\n')
+            f.writelines(f'today [{datetime.today()}]  {[delta_time]} '+ '\n')
             f.close()
             save_log(linux_path, 'first 300 delta time saved to timer.log')
     save_log(linux_path, 'update complite')
+    save_log(linux_path, f'in YahhoDReader no data fetched [{len(no_data_fetched_hist_yahho)}] next stocks [{no_data_fetched_hist_yahho}] ')
     # запускаем обновление актуальности данных в history_data
     history_date_base_update(db_connection_str)
     save_log(linux_path, 'teh indicator update start')
@@ -463,14 +466,8 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         print(f"update NO DATA {teh_analis_local}")
                     teh_an_to_sql(teh_analis_local)
                     # print(teh_analis_local)
-    # save_log(linux_path, 'teh indicator is up to date [ ' + str(update_teh) + ' ]')
-    # save_log(linux_path, 'teh indicator smooler ' + str(deltadays))
     save_log(linux_path, f'teh indicator update complite, make {update_teh} records')
     save_log(linux_path, f'teh indicator not found [{len(stock_not_found_teh_an)}] next stock [{stock_not_found_teh_an}] , ')
-    # df_last_update = pd.read_sql(
-    #     'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
-    #     con=db_connection)  # загрузили список тикеров из базы с последней датой
-    # df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')  # append , replace
     save_log(linux_path, 'base_status update complite')
     return df_last_update
 
@@ -550,7 +547,7 @@ linux_path = ''
 db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
 delta_data_koeff = 20
 mysleep, max_wait_days = 0.001, 45
-stock_not_found_teh_an = []
+stock_not_found_teh_an, no_data_fetched_hist_yahho = [], []
 
 def main():
     global linux_path, mysleep
