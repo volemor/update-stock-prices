@@ -81,7 +81,7 @@ def save_exeption_log(linux_path, modul, message):
         stock_not_found_teh_an.append(message.split()[2].upper())
     elif 'No data fetched' in message:
         no_data_fetched_hist_yahho.append(message.split()[5])
-    if message != '0' or 'Date' not in message or 'signal' not in message:
+    if message != '0' or "'Date'" not in message or 'signal' not in message or 'No data fetched' not in message:
         f = open(linux_path + 'update_extention.log', mode='a')
         lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
         f.writelines(lines + '\n')
