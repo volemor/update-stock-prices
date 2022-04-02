@@ -655,13 +655,14 @@ def send_email(name_for_save, name_for_save_crop):
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
     file_name = [name_for_save_crop, name_for_save]
+    mail_status = ['not_vip', 'vip']
     client_my = []
     try:
         server.login(mail_login, mail_pass)
         msg = MIMEMultipart()
         msg["From"] = mail_login
         msg["Subject"] = "Новый отчет " + str(datetime.today().strftime("%Y-%m-%d") + " для моих подписчиков")
-        for file in file_name:
+        for file, mail_client_key in zip(file_name, mail_status):
             filename = os.path.basename(file)
             ftype, encoding = mimetypes.guess_type(file)
             filetype, subtype = ftype.split("/")
@@ -669,14 +670,19 @@ def send_email(name_for_save, name_for_save_crop):
                 file = MIMEApplication(f.read(), subtype)
             file.add_header('content-disposition', 'attachment', filename=filename)
             msg.attach(file)
-        print('Len of message = ', len(msg))
+            for cli in tqdm(mail_global_dict[mail_client_key]):
+                msg['To'] = cli
+                server.sendmail(mail_login, cli, msg.as_string())
+                time.sleep(2)
+                client_my.append(cli)
+
         ''' вот тут можно сделать вставку - следующий цикл по отправке почты - сначала по первому списку получателей, 
-        а потом суммарное письмо по второму'''
-        for cli in tqdm(client_mail_vip):
-            msg['To'] = cli
-            server.sendmail(mail_login, cli, msg.as_string())
-            time.sleep(2)
-            client_my.append(cli)
+        а потом суммарное письмо по второму, причем список клиентов можно зипануть в связке с файлом'''
+        # for cli in tqdm(client_mail_vip):
+        #     msg['To'] = cli
+        #     server.sendmail(mail_login, cli, msg.as_string())
+        #     time.sleep(2)
+        #     client_my.append(cli)
         return f"the message was send -{client_my} "
     except Exception as _ex:
         save_log(prj_path, str(_ex))
