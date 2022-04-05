@@ -24,7 +24,7 @@ import threading
 from pr_config import *  ## пробуем подгрузить свои данные
 from sec_config import *
 
-current_version = "22.8"
+current_version = "22.8- sql"
 
 '''
 делаем массив для анализа ошибок!!
@@ -48,10 +48,11 @@ v22.7 добавлена многопоточность, изменен спис
         в логах по итогам пишем время в формате Ч:М:С
         добавлен pr_config.py с общими переменными для всех файлов проекта и секретный файл с паролями от почты,
          !!! хотя sql_login тоже соделжит пароль от базы данных
-        
+
+v22.8   добавлена запись расчетных датафреймов в таблицу mysql --- tiker_report
+        -- те же столбцы, плюс market_name .. остальное вроде такое же все 
 TODO ::::
-        1)добавить запись расчетных датафреймов в таблицу mysql -- таблица sql_make 
-            -- те же столбцы, плюс дата расчета( может day_close подойдет), плюс market_name .. остальное вроде такое же все 
+        
         !!!записываем по итогам расчетов, плюс наверное нужно делать таблицу статуса - потом будем проверять -- может уже расчитано все!!
         !!! или может делать налету - построчно.. 
         2)добавить модуль для считывания из базы данных mysql и в эксель!!!
@@ -63,10 +64,10 @@ TODO ::::
 
 def bif_report_tables_to_sql(df, market):
     """записываем расчетную табличку в sql базу таблица -- tiker_report"""
-    engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
-    df[market] = market
+    df['market'] = market
+    df.set_index('tiker', inplace=True)
     try:
-        df.to_sql(name='tiker_report', con=engine, if_exists='append')  # append , replace
+        df.to_sql(name='tiker_report', con=create_engine(sql_login), if_exists='append')  # append , replace
     except Exception as _ex:
         save_exeption_log(linux_path, modul='report_table', message=str(_ex))
         print(f'SQL save errorrr {str(_ex)}\n ', df.shape, df, '\n')
@@ -466,35 +467,14 @@ def sql_base_make(prj_path, sql_login,
     save_log(prj_path,
              f'len of outdate of hist_date {len(df_out_date)} from {len(df_last_update)} id [{round(100 * len(df_out_date) / len(df_last_update), 0)}]%')
 
-    # df_teh = pd.read_sql(
-    #     'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
-    #     con=db_connection)
-
-    # print('[', datetime.today(), ']', "load LIST from Mysql...[OK]")
-    # print('teh_an shape', df_teh.shape)
-
     thread_link[sql_comm_key[3]].join()
     thread_link[sql_comm_key[4]].start()
     df_spb = thre_sql_return[sql_comm_key[3]]
-    ## pd.read_sql(
-    # f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';',
-    # con=db_connection)  ## загружаем базу СПБ ---USD
-    print(f'SPB sql load OK [{df_spb.shape}]')
 
-    # df_ru = \
-    # pd.read_sql(
-    # f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
-    # con=db_connection)  ## загружаем базу СПБ ---RUB
+    print(f'SPB sql load OK [{df_spb.shape}]')
 
     if datetime.today().weekday() == 5:
         thread_link[sql_comm_key[5]].start()
-        #
-        # df_from_us = pd.read_sql(
-        #     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
-        #     con=db_connection)  ## загружаем базу US
-        # print('US sql load OK')
-    # считаем актуальность базы данных
-    # statistic_data_base(df_last_update)
 
     save_log(prj_path, "SPB base load--" + str(len(df_spb)) + "...[OK]")
 
@@ -532,6 +512,8 @@ def sql_base_make(prj_path, sql_login,
             # print(my_df)
             big_df = pd.concat([big_df, my_df])
     print('len big df SPB', len(big_df))
+
+    bif_report_tables_to_sql(big_df.copy(), 'SPB')
 
     thread_link[sql_comm_key[4]].join()
     df_ru = thre_sql_return[sql_comm_key[4]]
@@ -610,7 +592,13 @@ def sql_base_make(prj_path, sql_login,
 
     print('\n[', datetime.today(), ']', 'EXCEL file .... [SAVED]')
     print('\n[', datetime.today(), ']', (datetime.today() - start_timer).seconds, '[sec]')
-    save_log(prj_path, '\n[' + str(datetime.today()) + ']' + str((datetime.today() - start_timer).seconds) + '[sec]')
+    save_log(prj_path, '-----[' + str(datetime.today()) + '] ' + str(
+        timedelta(seconds=((datetime.today() - start_timer).seconds))))
+    # bif_report_tables_to_sql(big_df, 'SPB')
+    bif_report_tables_to_sql(big_df_ru.copy(), 'RU')
+    bif_report_tables_to_sql(big_df_US.copy(), 'USA')
+    save_log(prj_path, 'SQL save complite')
+    # exit()
     return name_for_save
 
 
@@ -710,7 +698,7 @@ def send_email(name_for_save, name_for_save_crop):
             for cli in tqdm(mail_global_dict[mail_client_key]):
                 msg['To'] = cli
                 server.sendmail(mail_login, cli, msg.as_string())
-                time.sleep(4)
+                time.sleep(1)
                 print(f'list [{mail_client_key}] client [{cli}]')
                 client_my.append(cli)
 
@@ -771,7 +759,7 @@ def main():
     # os.remove(name_for_save_crop)
     # save_log(prj_path, str(f'Now remove old file [{os.pardir} {name_for_save}]'))
     # save_log(prj_path, str(f'Now remove old file [{os.pardir} {name_for_save_crop}]'))
-    message = f" all Calculating for [{str((datetime.today() - start_timer).seconds)}] sec [{timedelta(seconds=((datetime.today() - start_timer).seconds) ) }]"
+    message = f" all Calculating for [{str((datetime.today() - start_timer).seconds)}] sec [{timedelta(seconds=((datetime.today() - start_timer).seconds))}]"
     # ((datetime.today() - start_timer).seconds)}'
     print(datetime.today(), message)
     save_log(prj_path, message)

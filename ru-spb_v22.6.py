@@ -154,6 +154,7 @@ def stock_name_table(prj_path):
     big_df = big_df.append(other=us_stos_usa, ignore_index=True)
     # print('all', big_df)
 
+
     with pd.ExcelWriter(prj_path + 'my_all_st.xlsx') as writer:
         big_df.to_excel(writer, sheet_name='all')  ### работает!!!
     # big_df.to_csv('my_test_all_st.csv', sep=';', encoding='cp1251', line_terminator='/n', index=True)
