@@ -1,7 +1,6 @@
 ﻿import mimetypes
 import os
 import smtplib
-import threading
 import time
 from datetime import date
 from datetime import datetime
@@ -52,15 +51,11 @@ v22.7 добавлена многопоточность, изменен спис
 v22.8   добавлена запись расчетных датафреймов в таблицу mysql --- tiker_report
         -- те же столбцы, плюс market_name .. остальное вроде такое же все 
 TODO ::::
-        
         !!!записываем по итогам расчетов, плюс наверное нужно делать таблицу статуса - потом будем проверять -- может уже расчитано все!!
-        !!! или может делать налету - построчно.. 
-        2)добавить модуль для считывания из базы данных mysql и в эксель!!!
-         и потом дальнейшее форматирование)))
-         
-          
+        !!! или может делать налету - построчно..  
+        Select tiker, max(day_close) as day_close_max, market from tiker_report group by tiker;         
 '''
-
+# TODO: добавить модуль для считывания из базы данных mysql и в эксель!!! и потом дальнейшее форматирование)))
 
 def bif_report_tables_to_sql(df, market):
     """записываем расчетную табличку в sql базу таблица -- tiker_report"""
@@ -484,6 +479,8 @@ def sql_base_make(prj_path, sql_login,
     делаем выборку по тикеру - столбцы date, high, low -- переводим индекс date. уже не конвертируем в numpy.
     передаем в функцию
     '''
+    # TODO: надо заменить весь этот блок вызовом компактных функций. возможно с мультипроцессорностью.\
+    #
     df_spb.sort_values(by=['date'], inplace=True)
     thread_link[sql_comm_key[6]].join()
     df_teh = thre_sql_return[sql_comm_key[6]]

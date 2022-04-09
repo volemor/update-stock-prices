@@ -81,7 +81,8 @@ def save_exeption_log(linux_path, modul, message):
         stock_not_found_teh_an.append(message.split()[2].upper())
     elif 'No data fetched' in message:
         no_data_fetched_hist_yahho.append(message.split()[5])
-    if message != '0' or "'Date'" not in message or 'signal' not in message or 'No data fetched' not in message:
+
+    if message != '0' or "'Date'" not in message or 'signal' not in message or 'fetched' not in message:
         f = open(linux_path + 'update_extention.log', mode='a')
         lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
         f.writelines(lines + '\n')
@@ -408,8 +409,14 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
     save_log(linux_path, 'update complite')
     save_log(linux_path,
              f'in YahhoDReader no data fetched [{len(no_data_fetched_hist_yahho)}] next stocks [{no_data_fetched_hist_yahho}] ')
+    # TODO: сделать многопоточным этот участов кода
+
     # запускаем обновление актуальности данных в history_data
     history_date_base_update(db_connection_str)
+    ''' пишем в лог результат обновления hist_data '''
+    df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection_str)
+    statistic_data_base(df_last_update)
+
     save_log(linux_path, 'teh indicator update start')
     ''' try to find and save timedalta between operation '''
     update_teh = 0
@@ -442,7 +449,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 # print(teh_analis_local)
         else:
             deltadays = (cur_date.date() - df_last_teh[df_last_teh.st_id == indexx].iloc[0]['date_max']).days
-            if deltadays <= 700 and deltadays > 15 and datetime.today().time().hour < 14:
+            if deltadays <= 700 and deltadays > 10 and datetime.today().time().hour < 14:
                 if df_last_update[df_last_update.st_id == indexx].iloc[0]["Currency"] == 'USD':
                     try:
                         teh_analis_local = teh_an(indexx, country_teh=market_name[0])
@@ -571,6 +578,23 @@ def main():
         history_path = '/mnt/1T/opt/gig/My_Python/st_US/SAVE'
         print("start from LINUX")
 
+    history_updater(linux_path, db_connection_str)  #  загрузка и обновление sql базы
+
+
+
+    exit()
+
+    print("UPDATE complite.. start remove dublikate")
+    engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
+    db_connection = create_engine(db_connection_str)  # connect to database
+    engine.execute("ALTER IGNORE TABLE hist_data ADD UNIQUE ( Date, st_id(6))").fetchall()  # удаляем дубликаты в mysql
+    print("MYSQL dublikate delete...OK")
+
+
+if __name__ == "__main__":
+    main()
+
+
     # end constant list
 
     # pand_to_csv(linux_path) ##конвертация базы в формат csv для загрузки вручную
@@ -592,20 +616,3 @@ def main():
     # my mysql request end###
 
     # load_from_mysql(db_connection_str)
-
-    df_last_update = history_updater(linux_path, db_connection_str)  # тестируем загрузку и обновление sql базы
-    # update statistic
-    df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection_str)
-    statistic_data_base(df_last_update)
-
-    exit()
-
-    print("UPDATE complite.. start remove dublikate")
-    engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
-    db_connection = create_engine(db_connection_str)  # connect to database
-    engine.execute("ALTER IGNORE TABLE hist_data ADD UNIQUE ( Date, st_id(6))").fetchall()  # удаляем дубликаты в mysql
-    print("MYSQL dublikate delete...OK")
-
-
-if __name__ == "__main__":
-    main()
