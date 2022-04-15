@@ -56,7 +56,9 @@ TODO ::::
         Select tiker, max(day_close) as day_close_max, market from tiker_report group by tiker;
         !!сделать возможность добавления кучи списков тикеров - и чтоб ексель добавлял странички налету - при любом кол-ве списков
         !!! упростить шаблон екселя - все равно все страницы равны --- тока разница в таблице теханализа..  
-        1000200) надо придумать шапку головную - что когда запускать --- вот модуль insert_history_date_into_sql(): - когда запускаем ??   может его в update_sql.py перенести???          
+        1000200) надо придумать шапку головную - что когда запускать --- вот модуль insert_history_date_into_sql(): - когда запускаем ??   
+                может его в update_sql.py перенести или в split_check?? --
+                 наверное последнеее логичнее - update_sql.py -- каждый день запускается в свое окно! а   split_check раз в неделю..      
 '''
 
 
@@ -104,54 +106,7 @@ def my_hist_data_from_spb_list_update():
         save_log(prj_path, message=f"writen next tiker {listNew}")
 
 
-def insert_history_date_into_sql():
-    """
-    загружаем новые тикеры в sql базу на основе investpy.get_stocks.
-    вставляем под market US
 
-    ?? а какую дату загрузки делать??? - начальную можно сделать 1/1/2019, а конец - дату сегодняшнюю???
-    :return:
-    """
-    db_connection = create_engine(sql_login)
-    market_name = ['United States', 'United States', 'russia']
-    stocks_us_investpy = investpy.get_stocks(country=market_name[0])['symbol']
-    df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
-    # df_last_update = pd.read_excel('base_status.xlsx')['st_id']
-    save_log(prj_path, message='insert new tiker from investpy.get_stocks to SQL history_date')
-    df = df_last_update.to_numpy().tolist()
-    my_2_list = stocks_us_investpy.to_numpy().tolist()
-    my_only_US_df_list = []
-    for index_us in tqdm(my_2_list):
-        # print(index_us)
-        if index_us in df:
-            # print(f'is in -={index_us}')
-            continue
-        else:
-            my_only_US_df_list.append(index_us)
-            # print(f"{index_us} - add" )
-
-    print(f"my list len = {len(my_only_US_df_list)}")
-    print(f'all US list len = {len(my_2_list)}')
-    my_only_US_df_list.sort()
-    save_log(prj_path, message=f'find {len(my_only_US_df_list)}, try add {my_only_US_df_list}')
-    print(my_only_US_df_list)
-    from_date_m, to_date_m = '4/02/2020', '6/02/2020'
-    successfully_list = []
-    for only_us_index in tqdm(my_only_US_df_list):
-        try:
-            df_update = investpy.get_stock_historical_data(stock=only_us_index,
-                                                           country=market_name[0],
-                                                           from_date=from_date_m,
-                                                           to_date=to_date_m)
-            time.sleep(1.0)
-            df_update[['st_id', 'Currency', 'market']] = only_us_index, "USD", 'US'
-            successfully_list.append(only_us_index)
-        except:
-            print(f'Error [{only_us_index}] loading')
-            continue
-        pd_df_to_sql(df_update)
-    save_log(prj_path,
-             message=f'LEn of successfully list is [{len(successfully_list)}], apply [{round(100 * len(successfully_list) / len(my_only_US_df_list), 0)}]%,  added list-- {successfully_list}')
 
 
 def stock_name_table(prj_path):
