@@ -10,10 +10,19 @@ import os
 from pandas_datareader import data as pdr
 import threading
 
+# TODO: вообще надо бы сделать типа rest api --- программа засылает запрос, который перехватывает собственный модуль
 ''' 
-надо бы сделать органичение по времени работы - типа в час ночи - сказать байбай.. иначе два запуска могут наложиться
-и investpy заблокирует на 3 дня нас...
-типа datetime.today().time().hour = 1 - то запись в лог и  exit() ---  
+!!!!!вообще надо бы сделать типа rest api --- программа засылает запрос, который перехватывает собственный модуль,
+!!!!!КОТОРЫЙ будет заодно делать проверку на частоту обращения к интернет сервисам!!!!
+1) продумать возможность выстроения очереди и регулирования её длины.  
+ или может сделать распаралеливание обращений к Yahho  и Investpy  
+2) надо подумать как китайские акции сюда подгружать!!!
+
+
+работа проги расчитана для запуска с 2.40 ночи (примерно в это время уже все записи обновлены) и до 16 ( в 18-10 запускается модуль контроля сплитов)
+
+
+
 добавлена обработка ошибок - и выходим если нет смысла проверять все. 
 добавлена отдельный лог для ошибок при вызове функций (update_extention.log).
 
@@ -21,7 +30,8 @@ import threading
 '''
 
 
-def teh_an(t_name, country_teh):  # модуль сбора данных теханализа
+def teh_an(t_name, country_teh):
+    '''модуль сбора данных теханализа'''
     my_date = ['daily', 'weekly', 'monthly']
     col_list_teh = ['date', 'st_id', 'teh_daily_sel', 'teh_daily_buy', 'teh_weekly_sel', 'teh_weekly_buy',
                     'teh_monthly_sell', 'teh_monthly_buy',
@@ -76,7 +86,8 @@ def save_log(linux_path, message):
 
 
 def save_exeption_log(linux_path, modul, message):
-    '''записываем в файл логи ошибок с указанием модуля из которого был вызов '''
+    '''записываем в файл логи ошибок с указанием модуля из которого был вызов
+    при этом делаем некую фильтрацию'''
     global stock_not_found_teh_an, no_data_fetched_hist_yahho
     if 'not found' in message and modul == 'teh_an':
         stock_not_found_teh_an.append(message.split()[2].upper())
@@ -88,6 +99,9 @@ def save_exeption_log(linux_path, modul, message):
     if 'signal' in message:
         return print('signal')
     # TODO: не фильтруется и все же пишется в лог No data fetched
+    # TODO: надо бы придумать такой фокус, кок сравнение с предудущей записью - если одно и тоже, то просто считаем и
+    # TODO: записываем число повторений, если запись поменялась.
+
     if message != '0':
         f = open(linux_path + 'update_extention.log', mode='a')
         lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
@@ -99,6 +113,8 @@ def save_exeption_log(linux_path, modul, message):
 
 
 def stock_name_table(linux_path):
+    """загрузка тикеров из инета и файла с СПБ в эксель файл
+    !! сейчас не используется"""
     ru_stos1 = investpy.stocks.get_stocks(country='russia')
     ru_stos = ru_stos1[['name', 'symbol']]
     mmm = np.zeros((len(ru_stos), 1)) + 3
@@ -131,7 +147,9 @@ def stock_name_table(linux_path):
     # big_df.to_csv('my_test_all_st.csv', sep=';', encoding='cp1251', line_terminator='/n', index=True)
 
 
-def my_start():  # исходные данные - константы
+def my_start():
+    """исходные данные - константы    """
+
     col_list = ['tiker', 'name', 'today_close',
                 'mean_min_dek1', 'mean_min_dek2', 'mean_min_dek3', 'mean_min_dek4',
                 'mean_min_dek5', 'mean_min_dek6', 'mean_min_dek7', 'mean_min_dek8',
@@ -158,6 +176,11 @@ def my_start():  # исходные данные - константы
 
 
 def history_data(linux_path):  # сохраняем все  -- вроде работает
+    """модуля для загрузки исторических данных по тикерам в Большой xlsx файл - использовался до внедрения sql базы
+     данные каждый раз загружались с нуля. накопления не было.
+     !!!! сейчас не используется
+     """
+
     from_date, to_date = '1/08/2019', '01/08/2021'
     stock_list_data = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'st_id', 'market']
     all_stock = pd.read_excel(linux_path + 'my_test_all_st.xlsx', sheet_name='all')  # , index_col=0)
@@ -230,7 +253,15 @@ def history_data(linux_path):  # сохраняем все  -- вроде раб
     '''
 
 
-def history_updater(linux_path, db_connection_str):  # делаем обновление базы mysql
+def history_updater(linux_path, db_connection_str):
+    """основной модуль обновления исторических данных
+    hist_data: date, high, low, open, close, volume
+    и данных теханализа путем загрузки данных c сервисов Investpy и Yahho
+
+
+    """
+
+    # делаем обновление базы mysql
     cur_date = datetime.today()
     time_count = []
     global mysleep, stock_not_found_teh_an, no_data_fetched_hist_yahho
@@ -276,7 +307,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
 
     for ind in tqdm(range(len(df_last_update))):
         deltadays = (cur_date - df_last_update.iloc[ind, 1]).days
-        if deltadays <= 70 + delta_data_koeff * 100 and deltadays > 1 and datetime.today().time().hour > 1:
+        if deltadays <= 70 + delta_data_koeff * 100 and deltadays > 1 and datetime.today().time().hour < 16  and datetime.today().time().hour > 1:
             from_date_m, to_date_m = (timedelta(days=1) + df_last_update.iloc[ind, 1]).strftime(
                 "%d/%m/%Y"), cur_date.strftime("%d/%m/%Y")  # граничные даты обновления..
             # print(f'\n:{df_last_update.iloc[ind, 0]}:last date-{(df_last_update.iloc[ind, 1]).strftime("%Y-%m-%d")},'
@@ -289,11 +320,11 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     ind, 0]:  # если в списке тикеров на investpy - то ищем, иначе лезем в YAHHO
                     print(df_last_update.iloc[ind, 0], ' Is in InvestPy')
                     try:
+                        time.sleep(mysleep)
                         df_update = investpy.get_stock_historical_data(stock=df_last_update.iloc[ind, 0],
                                                                        country=market_name[0],
                                                                        from_date=from_date_m,
                                                                        to_date=to_date_m)
-                        time.sleep(mysleep)
                         time_count.append(time.time())
                         df_update['market'] = "SPB"
                         # print(f'SPB load ok {df_last_update.iloc[ind, 0]}')
@@ -303,7 +334,8 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
                         print("USA investpy load error", df_last_update.iloc[ind, 0])
-                        save_exeption_log(linux_path, modul='history', message=str(_ex))
+                        save_exeption_log(linux_path, modul='history [Ipy]',
+                                          message=str(_ex) + str(df_last_update.iloc[ind, 0]))
                         if 'Max retries exceeded with' in str(_ex):
                             save_log(linux_path, 'Too litle timedelta, need 2 pause')
                             exit()
@@ -313,13 +345,14 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     print(df_last_update.iloc[ind, 0], ' Is in YAhho')
                     try:
                         name = df_last_update.iloc[ind, 0]
+                        time.sleep(mysleep)
                         df_update = (
                             (pdr.get_data_yahoo(name,
                                                 start=datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')
                                                 , end=datetime.strptime(to_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')
                                                 ))[
                                 ['Open', 'High', 'Low', 'Close', 'Volume']]).round(4)
-                        time.sleep(mysleep)
+
                         time_count.append(time.time())
                         df_update[['Currency', 'market']] = "USD", 'SPB'
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
@@ -329,7 +362,8 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                             df_update['Date'] >= datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='history', message=str(_ex))
+                        save_exeption_log(linux_path, modul='history [Yah]',
+                                          message=str(_ex) + str(df_last_update.iloc[ind, 0]))
                         print("USA YAHHO load error", df_last_update.iloc[ind, 0])
                         continue
                     print('yahho SPB \n', df_update)
@@ -339,11 +373,11 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 if pd.DataFrame.any(us_stock) == df_last_update.iloc[
                     ind, 0]:  # если в списке тикеров на investpy - то ищем, иначе лезем в YAHHO
                     try:
+                        time.sleep(mysleep)
                         df_update = investpy.get_stock_historical_data(stock=df_last_update.iloc[ind, 0],
                                                                        country=market_name[0],
                                                                        from_date=from_date_m,
                                                                        to_date=to_date_m)
-                        time.sleep(mysleep)
                         time_count.append(time.time())
                         # print(df_last_update.iloc[ind, 0], df_update.tail(3))
                         df_update['market'] = "US"
@@ -351,19 +385,20 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                         df_update['st_id'] = df_last_update.iloc[ind, 0]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='history', message=str(_ex))
+                        save_exeption_log(linux_path, modul='history [Ipy]',
+                                          message=str(_ex) + str(df_last_update.iloc[ind, 0]))
                         # print("USA investpy load error", df_last_update.iloc[ind, 0])
                         continue
                 else:  # иначе лезем в YAHHO
                     try:
                         name = df_last_update.iloc[ind, 0]
+                        time.sleep(mysleep)
                         df_update = (
                             (pdr.get_data_yahoo(name,
                                                 start=datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')
                                                 , end=datetime.strptime(to_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')
                                                 ))[
                                 ['Open', 'High', 'Low', 'Close', 'Volume']]).round(4)
-                        time.sleep(mysleep)
                         time_count.append(time.time())
                         df_update[['st_id', 'Currency', 'market']] = name, "USD", 'US'
                         # print('data fro YAHHO', df_update.tail(3))
@@ -373,17 +408,18 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                             df_update['Date'] >= datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='history', message=str(_ex))
+                        save_exeption_log(linux_path, modul='history [Yah]',
+                                          message=str(_ex) + str(df_last_update.iloc[ind, 0]))
                         # print("USA YAHHO load error", df_last_update.iloc[ind, 0])
                         continue
             elif df_last_update.iloc[ind, 3] == 'RU':
                 try:
+                    time.sleep(mysleep)
                     df_update = investpy.get_stock_historical_data(stock=df_last_update.iloc[ind, 0],
                                                                    country=market_name[2],
                                                                    from_date=from_date_m,
                                                                    to_date=to_date_m)
                     # print(df_last_update.iloc[ind, 0],df_update)
-                    time.sleep(mysleep)
                     time_count.append(time.time())
                     df_update['market'] = "RU"
                     df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
@@ -400,28 +436,28 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 continue
             # print(df_update)
         sleep_timer_regulator()
-        if len(time_count) == 300:
+        if len(time_count) == 1800:
             ''' try to find and save timedalta between operation '''
             delta_time = []
-            for ind in range(300 - 1):
+            for ind in range(len(time_count) - 1):
                 delta = round(time_count[ind + 1] - time_count[ind], 2)
                 delta_time.append(delta)
             delta_f = pd.Series(delta_time)
             save_log(linux_path,
-                     f'mean of timer_count is [{delta_f.mean().round(2)}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
+                     f'mean of timer_count[{len(time_count)}] is [{delta_f.mean().round(2)}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
             f = open(linux_path + 'timer.log', mode='a')
             f.writelines(f'today [{datetime.today()}]  {[delta_time]} ' + '\n')
             f.close()
-            save_log(linux_path, 'first 300 delta time saved to timer.log')
+            # save_log(linux_path, 'first 300 delta time saved to timer.log')
     save_log(linux_path, 'update complite')
-    save_log(linux_path,
-             f'in YahhoDReader no data fetched [{len(no_data_fetched_hist_yahho)}] next stocks [{no_data_fetched_hist_yahho}] ')
+    # save_log(linux_path,
+    #          f'in YahhoDReader no data fetched [{len(no_data_fetched_hist_yahho)}] next stocks [{no_data_fetched_hist_yahho}] ')
     # TODO: сделать многопоточным этот участов кода
 
     # history_date_base_update(db_connection_str)
     ''' пишем в лог результат обновления hist_data '''
 
-    def update_log_statistic(f):  #
+    def update_log_statistic():  #
         save_log(linux_path, 'Tread start_____')
         # запускаем обновление актуальности данных в history_data
         history_date_base_update(db_connection_str)
@@ -429,15 +465,15 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
         statistic_data_base(df_last_update)
         save_log(linux_path, 'Tread complite_____')
 
-    update_log_tread = threading.Thread(target=update_log_statistic, args=(1, ))## just play with some keys
+    update_log_tread = threading.Thread(target=update_log_statistic)  ## just play with some keys
     update_log_tread.start()
 
     save_log(linux_path, 'teh indicator update start')
     ''' try to find and save timedalta between operation '''
     update_teh = 0
     for indexx in tqdm(df_last_update.st_id):
-        if pd.DataFrame.any(
-                df_last_teh.st_id == indexx) == False:  # если нет в списке - расчитываем и добавляем, иначе просто расчитываем
+        if not (
+                df_last_teh.st_id == indexx).any():  # если нет в списке - расчитываем и добавляем, иначе просто расчитываем
             if df_last_update[df_last_update.st_id == indexx].iloc[0]["Currency"] == 'USD':
                 try:
                     teh_analis_local = teh_an(indexx, country_teh=market_name[0])
@@ -464,7 +500,7 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 # print(teh_analis_local)
         else:
             deltadays = (cur_date.date() - df_last_teh[df_last_teh.st_id == indexx].iloc[0]['date_max']).days
-            if deltadays <= 700 and deltadays > 10 and datetime.today().time().hour < 14:
+            if deltadays <= 700 and deltadays > 15 and datetime.today().time().hour < 14:
                 if df_last_update[df_last_update.st_id == indexx].iloc[0]["Currency"] == 'USD':
                     try:
                         teh_analis_local = teh_an(indexx, country_teh=market_name[0])
@@ -491,15 +527,17 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                     teh_an_to_sql(teh_analis_local)
                     # print(teh_analis_local)
     save_log(linux_path, f'teh indicator update complite, make {update_teh} records')
-    save_log(linux_path,
-             f'teh indicator not found [{len(stock_not_found_teh_an)}] next stock [{stock_not_found_teh_an}] , ')
+    if len(stock_not_found_teh_an) != 0:
+        save_log(linux_path,
+                 f'teh indicator not found [{len(stock_not_found_teh_an)}] next stock [{stock_not_found_teh_an}] , ')
     update_log_tread.join()
     save_log(linux_path, 'base_status update complite')
     return df_last_update
 
 
 def history_date_base_update(db_connection_str):
-    """ считаваем максимальные значения дат для каждого тикера из базы данных ,и потом записываем в отдельную таблицу для быстрого доступа"""
+    """ считаваем максимальные значения дат для каждого тикера из базы данных ,и потом записываем в отдельную таблицу для быстрого доступа
+    необходимо для правильного обращения к данным при расчетах"""
     db_connection = create_engine(db_connection_str)
     df_last_update = pd.read_sql(
         'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
@@ -537,7 +575,7 @@ def teh_an_to_sql(teh_an_df):
         teh_an_df.to_sql(name='teh_an', con=engine, if_exists='append')  # append , replace
         print(f"teh_an save_to MYSQL [{teh_an_df.loc[0]['st_id']}]...... OK")
     except Exception as _ex:
-        save_exeption_log(linux_path, modul='teh_an_sql', message=str(_ex))
+        save_exeption_log(linux_path, modul='teh_an_sql', message=str(_ex) + str(teh_an_df.loc[0]['st_id']))
         print(f"Error MYSQL _ teh_an [{teh_an_df.loc[0]['st_id']}]")
 
 
@@ -568,6 +606,14 @@ def statistic_data_base(df_last_update):
     save_log(linux_path, "statistic calculation complete")
 
 
+def start_control():
+    ''' модуль контроля времени запуска - чтоб не помешать другим программам по обращению к Investpy Yahho'''
+
+    if datetime.today().time().hour > 16  or datetime.today().time().hour < 1:
+        save_log(linux_path, '!!!!! TRY run in BLOKED time!!!!!! ')
+        exit()
+
+
 linux_path = ''
 db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
 delta_data_koeff = 20
@@ -594,8 +640,9 @@ def main():
         history_path = '/mnt/1T/opt/gig/My_Python/st_US/SAVE'
         print("start from LINUX")
 
+    start_control()
     history_updater(linux_path, db_connection_str)  # загрузка и обновление sql базы
-
+    save_log(linux_path, '------------update complited --------------')
     exit()
 
     print("UPDATE complite.. start remove dublikate")
