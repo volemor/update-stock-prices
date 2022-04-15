@@ -7,6 +7,7 @@ import pandas as pd
 import investpy
 import time
 from pandas_datareader import data as pdr
+from update_sql import pd_df_to_sql
 
 """ запускается проектамма в 18-10 по понедельникам - должна работу закончить до 23 часов"""
 
@@ -21,6 +22,7 @@ else:
 
 db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
 db_connection = create_engine(db_connection_str)
+mysleep = 0.0001
 
 '''
 общий план:
@@ -204,8 +206,79 @@ def split_check():
     return split_list
 
 
+def insert_history_date_into_sql():
+    """
+    загружаем новые тикеры в sql базу на основе investpy.get_stocks.
+    вставляем под market US
+
+    ?? а какую дату загрузки делать??? - начальную можно сделать 1/1/2019, а конец - дату сегодняшнюю???
+    :return:
+    """
+    time_count = []
+    global mysleep
+
+    def sleep_timer_regulator():
+        '''пробуем регулировать паузу между обращениями за данными налету'''
+        global mysleep
+        if len(time_count) > 2:
+            delta_timer_local = time_count[-1] - time_count[-2]
+            if delta_timer_local < 1:
+                mysleep = 1
+            if delta_timer_local > 2:
+                mysleep = 0.001
+
+    market_name = ['United States', 'United States', 'russia']
+    stocks_us_investpy = investpy.get_stocks(country=market_name[0])['symbol']
+    df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
+    # df_last_update = pd.read_excel('base_status.xlsx')['st_id']
+    save_log(message='insert new tiker from investpy.get_stocks to SQL history_date', linux_path=linux_path)
+    df = df_last_update.to_numpy().tolist()
+    my_2_list = stocks_us_investpy.to_numpy().tolist()
+    my_only_US_df_list = []
+    for index_us in tqdm(my_2_list):
+        # print(index_us)
+        if index_us in df:
+            # print(f'is in -={index_us}')
+            continue
+        else:
+            my_only_US_df_list.append(index_us)
+            # print(f"{index_us} - add" )
+
+    print(f"my list len = {len(my_only_US_df_list)}")
+    print(f'all US list len = {len(my_2_list)}')
+    my_only_US_df_list.sort()
+    save_log(message=f'find {len(my_only_US_df_list)}, try add {my_only_US_df_list}', linux_path=linux_path)
+    print(my_only_US_df_list)
+    from_date_m, to_date_m = '1/01/2019', datetime.today().strftime("%d/%m/%Y")
+    successfully_list = []
+    for only_us_index in tqdm(my_only_US_df_list):
+        check_for_time()
+        try:
+            time.sleep(mysleep)
+            df_update = investpy.get_stock_historical_data(stock=only_us_index,
+                                                           country=market_name[0],
+                                                           from_date=from_date_m,
+                                                           to_date=to_date_m)
+            time_count.append(time.time())
+            df_update[['st_id', 'Currency', 'market']] = only_us_index, "USD", 'US'
+            successfully_list.append(only_us_index)
+        except:
+            print(f'Error [{only_us_index}] loading')
+            continue
+        # TODO: обязательно допилить перенос этой функции с переменными
+        pd_df_to_sql(df_update)
+        sleep_timer_regulator()
+    save_log(
+        message=f'LEn of successfully list is [{len(successfully_list)}], apply [{round(100 * len(successfully_list) / len(my_only_US_df_list), 0)}]%,  added list-- {successfully_list}',
+        linux_path=linux_path)
+
+
 split_list_return = split_check()
 
 sql_base_clear_for_split_list(split_list_return)
+
+"""  требуется ручное тестирование"""
+#### insert_history_date_into_sql()
+
 
 history_date_base_update()  # по итогам проверки обновляем статус базы
