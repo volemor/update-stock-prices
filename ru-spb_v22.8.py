@@ -56,8 +56,10 @@ TODO ::::
         Select tiker, max(day_close) as day_close_max, market from tiker_report group by tiker;
         !!сделать возможность добавления кучи списков тикеров - и чтоб ексель добавлял странички налету - при любом кол-ве списков
         !!! упростить шаблон екселя - все равно все страницы равны --- тока разница в таблице теханализа..  
-                 
+        1000200) надо придумать шапку головную - что когда запускать --- вот модуль insert_history_date_into_sql(): - когда запускаем ??   может его в update_sql.py перенести???          
 '''
+
+
 # TODO: добавить модуль для считывания из базы данных mysql и в эксель!!! и потом дальнейшее форматирование)))
 
 def bif_report_tables_to_sql(df, market):
@@ -106,6 +108,8 @@ def insert_history_date_into_sql():
     """
     загружаем новые тикеры в sql базу на основе investpy.get_stocks.
     вставляем под market US
+
+    ?? а какую дату загрузки делать??? - начальную можно сделать 1/1/2019, а конец - дату сегодняшнюю???
     :return:
     """
     db_connection = create_engine(sql_login)
@@ -151,6 +155,8 @@ def insert_history_date_into_sql():
 
 
 def stock_name_table(prj_path):
+    """ старое....
+    !!!! не  используется"""
     ru_stos1 = investpy.stocks.get_stocks(country='russia')
     ru_stos = ru_stos1[['name', 'symbol']]
     mmm = np.zeros((len(ru_stos), 1)) + 3
@@ -186,7 +192,8 @@ def stock_name_table(prj_path):
 
 
 def year_live_stock():  # df, stick_id, st_name): #
-    ''' расчет годового роста каждый месяц -- еще не доделано!!!!! '''
+    ''' расчет годового роста каждый месяц --
+    еще не доделано!!!!! '''
     print('Блок расчета годоводго роста по месяцам')
     df_col_list = ['name', 'stiker', 'today_close', 'inter1', 'inter2', 'inter3', 'inter4', 'inter5', 'inter6',
                    'inter7', 'inter8', 'inter9', 'inter10', 'inter11', 'inter12', 'inter_sum', 'inter_mean']

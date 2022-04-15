@@ -8,10 +8,7 @@ import investpy
 import time
 from pandas_datareader import data as pdr
 
-
 """ запускается проектамма в 18-10 по понедельникам - должна работу закончить до 23 часов"""
-
-
 
 if os.name == 'nt':  # проверяем из под чего загрузка.
     linux_path = ''
@@ -59,6 +56,7 @@ db_connection = create_engine(db_connection_str)
 
 '''
 
+
 def history_date_base_update():
     """ считаваем максимальные значения дат для каждого тикера из базы данных ,и потом записываем в отдельную таблицу для быстрого доступа"""
     global db_connection
@@ -68,6 +66,7 @@ def history_date_base_update():
     df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')
     print('history_date_base_update complite')
 
+
 def check_for_time():
     ''' делаем проевку на время - в 23 часа надо прекратить и отключить обновление,
     так как запустили в 18 часов, в 2 ночи следующий запуск обновления исторических значений'''
@@ -75,11 +74,13 @@ def check_for_time():
         save_log(f"Time to go to sleep ))), now exit", linux_path)
         exit()
 
+
 def sql_base_clear_for_split_list(list_for_replase_data):
     global db_connection
-    if len(list_for_replase_data)>0:
+    if len(list_for_replase_data) > 0:
         base_status_df = pd.read_sql('Select * from base_status ;', con=db_connection)
-        list_for_replase_df = base_status_df.loc[base_status_df['st_id'].isin(list_for_replase_data)][['st_id', 'date_min']]
+        list_for_replase_df = base_status_df.loc[base_status_df['st_id'].isin(list_for_replase_data)][
+            ['st_id', 'date_min']]
         list_for_replase_df.reset_index(inplace=True)
         print(list_for_replase_df[['st_id', 'date_min']])
         remove_list, list_sero_set = [], []
@@ -105,6 +106,7 @@ def sql_base_clear_for_split_list(list_for_replase_data):
     else:
         save_log(f"SPLIT list is empty", linux_path)
 
+
 # TODO: наверное надо включать в лог запись - что за модуль сделал хапись - а то update or split check??
 def save_log(message, linux_path=''):  # сохраняет в лог файл сообщение..
     f = open(linux_path + 'update.log', mode='a')
@@ -116,7 +118,7 @@ def save_log(message, linux_path=''):  # сохраняет в лог файл �
 def split_check():
     global db_connection
     # поиск рабочей даты
-    save_log('split check start--------------------',linux_path)
+    save_log('split check start--------------------', linux_path)
     market_name = ['United States', 'United States', 'russia']
     us_stock = investpy.get_stocks(country=market_name[0])['symbol']
     find_name = 'AAPL'
@@ -131,9 +133,9 @@ def split_check():
         f"Select st_id, date, open, high, low,  close, volume, currency, market from hist_data where date = '{date_control}' ",
         con=db_connection)
     date_for_investpy_from, date_for_investpy_to = date_control.strftime("%d/%m/%Y"), (
-                timedelta(days=1) + date_control).strftime("%d/%m/%Y")
+            timedelta(days=1) + date_control).strftime("%d/%m/%Y")
     date_for_yahho_from, date_for_yahho_to = date_control.strftime('%Y-%m-%d'), (
-                timedelta(days=1) + date_control).strftime('%Y-%m-%d')
+            timedelta(days=1) + date_control).strftime('%Y-%m-%d')
     save_log(f"Start SPLIT control for date [{date_control}]", linux_path)
     split_list = []
     for index in range(len(my_sql_df_control_date)):
@@ -194,15 +196,16 @@ def split_check():
 
     save_log(f"split list - {split_list}", linux_path)
     save_log(f"Complite SPLIT control for date [{date_control}]", linux_path)
-    if len(split_list) >0:
+    if len(split_list) > 0:
         f = open(linux_path + 'split.log', mode='x')
         lines = str(True)
         f.writelines(lines + '\n')
         f.close()
     return split_list
 
+
 split_list_return = split_check()
 
 sql_base_clear_for_split_list(split_list_return)
 
-history_date_base_update()  #  по итогам проверки обновляем статус базы
+history_date_base_update()  # по итогам проверки обновляем статус базы

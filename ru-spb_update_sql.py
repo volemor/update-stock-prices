@@ -307,7 +307,7 @@ def history_updater(linux_path, db_connection_str):
 
     for ind in tqdm(range(len(df_last_update))):
         deltadays = (cur_date - df_last_update.iloc[ind, 1]).days
-        if deltadays <= 70 + delta_data_koeff * 100 and deltadays > 1 and datetime.today().time().hour < 16  and datetime.today().time().hour > 1:
+        if deltadays <= 70 + delta_data_koeff * 100 and deltadays > 1 and datetime.today().time().hour < 16 and datetime.today().time().hour > 1:
             from_date_m, to_date_m = (timedelta(days=1) + df_last_update.iloc[ind, 1]).strftime(
                 "%d/%m/%Y"), cur_date.strftime("%d/%m/%Y")  # граничные даты обновления..
             # print(f'\n:{df_last_update.iloc[ind, 0]}:last date-{(df_last_update.iloc[ind, 1]).strftime("%Y-%m-%d")},'
@@ -609,7 +609,7 @@ def statistic_data_base(df_last_update):
 def start_control():
     ''' модуль контроля времени запуска - чтоб не помешать другим программам по обращению к Investpy Yahho'''
 
-    if datetime.today().time().hour > 16  or datetime.today().time().hour < 1:
+    if datetime.today().time().hour > 16 or datetime.today().time().hour < 1:
         save_log(linux_path, '!!!!! TRY run in BLOKED time!!!!!! ')
         exit()
 
