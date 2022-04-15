@@ -80,17 +80,21 @@ def save_exeption_log(linux_path, modul, message):
     global stock_not_found_teh_an, no_data_fetched_hist_yahho
     if 'not found' in message and modul == 'teh_an':
         stock_not_found_teh_an.append(message.split()[2].upper())
+        return
     if 'No data fetched' in message:
         return no_data_fetched_hist_yahho.append(message.split()[5])
     if "'Date'" in message:
         return
-    #TODO: не фильтруется и пишентся в лог No data fetched
-    if message != '0' or 'signal' not in message:
+    if 'signal' in message:
+        return print('signal')
+    # TODO: не фильтруется и все же пишется в лог No data fetched
+    if message != '0':
         f = open(linux_path + 'update_extention.log', mode='a')
         lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
         f.writelines(lines + '\n')
         f.close()
     else:
+        print('exit pass')
         pass
 
 
@@ -240,7 +244,6 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
                 mysleep = 1
             if delta_timer_local > 2:
                 mysleep = 0.001
-
 
     teh_an_list = ['date', 'st_id', 'teh_daily_sel', 'teh_daily_buy', 'teh_weekly_sel', 'teh_weekly_buy',
                    'teh_monthly_sell', 'teh_monthly_buy',
@@ -415,17 +418,18 @@ def history_updater(linux_path, db_connection_str):  # делаем обновл
              f'in YahhoDReader no data fetched [{len(no_data_fetched_hist_yahho)}] next stocks [{no_data_fetched_hist_yahho}] ')
     # TODO: сделать многопоточным этот участов кода
 
-
     # history_date_base_update(db_connection_str)
     ''' пишем в лог результат обновления hist_data '''
-    def update_log_statistic(): #
+
+    def update_log_statistic(f):  #
         save_log(linux_path, 'Tread start_____')
         # запускаем обновление актуальности данных в history_data
         history_date_base_update(db_connection_str)
         df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection_str)
         statistic_data_base(df_last_update)
         save_log(linux_path, 'Tread complite_____')
-    update_log_tread = threading.Thread(target=update_log_statistic())
+
+    update_log_tread = threading.Thread(target=update_log_statistic, args=(1, ))## just play with some keys
     update_log_tread.start()
 
     save_log(linux_path, 'teh indicator update start')
@@ -590,9 +594,7 @@ def main():
         history_path = '/mnt/1T/opt/gig/My_Python/st_US/SAVE'
         print("start from LINUX")
 
-    history_updater(linux_path, db_connection_str)  #  загрузка и обновление sql базы
-
-
+    history_updater(linux_path, db_connection_str)  # загрузка и обновление sql базы
 
     exit()
 
@@ -605,7 +607,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
     # end constant list
 
