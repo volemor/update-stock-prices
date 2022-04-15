@@ -436,7 +436,7 @@ def history_updater(linux_path, db_connection_str):
                 continue
             # print(df_update)
         sleep_timer_regulator()
-        if len(time_count) == 1800:
+        if len(time_count) == 2800:
             ''' try to find and save timedalta between operation '''
             delta_time = []
             for ind in range(len(time_count) - 1):

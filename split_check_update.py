@@ -8,6 +8,11 @@ import investpy
 import time
 from pandas_datareader import data as pdr
 
+
+""" запускается проектамма в 18-10 по понедельникам - должна работу закончить до 23 часов"""
+
+
+
 if os.name == 'nt':  # проверяем из под чего загрузка.
     linux_path = ''
     history_path = 'D:\\YandexDisk\\корень\\отчеты\\'
@@ -100,7 +105,7 @@ def sql_base_clear_for_split_list(list_for_replase_data):
     else:
         save_log(f"SPLIT list is empty", linux_path)
 
-
+# TODO: наверное надо включать в лог запись - что за модуль сделал хапись - а то update or split check??
 def save_log(message, linux_path=''):  # сохраняет в лог файл сообщение..
     f = open(linux_path + 'update.log', mode='a')
     lines = '[' + str(datetime.today()) + '] ' + str(message)
