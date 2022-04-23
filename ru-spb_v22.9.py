@@ -23,7 +23,7 @@ import threading
 from pr_config import *  ## пробуем подгрузить свои данные
 from sec_config import *
 
-current_version = "22.8- sql"
+current_version = "22.9- sql"
 
 '''
 делаем массив для анализа ошибок!!
@@ -367,7 +367,7 @@ def sql_base_make(prj_path, sql_login,
     thread_link[sql_comm_key[0]].start()
     thread_link[sql_comm_key[0]].join()
     thread_link[sql_comm_key[1]].start()
-
+    thread_link[sql_comm_key[7]].start()
 
 
     '''
@@ -388,12 +388,30 @@ def sql_base_make(prj_path, sql_login,
     thread_link[sql_comm_key[1]].join()
 
     df_last_update = thre_sql_return[sql_comm_key[1]]  ###pd.read_sql(sql_command_list[1], con=db_connection)
-
+    thread_link[sql_comm_key[7]].join()
 
     '''
        base_status: -> df_last_update
         index | st_id  | date_max  | Currency | date_min | market 
        '''
+
+    def tiker_report_and_hist_data_compare(df_tiker_report_max, df_last_up_copy):
+        # модуль определения необходимости расчета нового tiker_report на основе max_date
+        df_last_up_copy['need_to_update'] = False
+        # print(df_tiker_report_max)
+
+        for index in df_last_up_copy['index']:
+            stiker = df_last_up_copy.at[index, 'st_id']
+
+            print(df_tiker_report_max[df_tiker_report_max['tiker'] == stiker].iloc[0]['max_day_close'])
+
+        exit()
+
+        # df_last_up_copy[df_last_up_copy['st_id'] == ]['date_max']
+
+    ## тестируем проверку tiker_report и df_last_update на соотвествие
+    df_tiker_report = thre_sql_return[sql_comm_key[7]]
+    # tiker_report_and_hist_data_compare(df_tiker_report, df_last_update)
 
     last_day_sql = df_last_update.iloc[1]['date_max'].date()
     # if (today_date.date() - last_day_sql).days != 0 :

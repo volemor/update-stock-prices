@@ -457,7 +457,6 @@ def history_updater(linux_path, db_connection_str):
     save_log(linux_path, 'update complite')
     # save_log(linux_path,
     #          f'in YahhoDReader no data fetched [{len(no_data_fetched_hist_yahho)}] next stocks [{no_data_fetched_hist_yahho}] ')
-    # TODO: сделать многопоточным этот участов кода
 
     # history_date_base_update(db_connection_str)
     ''' пишем в лог результат обновления hist_data '''
@@ -648,6 +647,9 @@ def main():
     start_control()
     history_updater(linux_path, db_connection_str)  # загрузка и обновление sql базы
     save_log(linux_path, '------------update complited --------------')
+
+
+
     exit()
 
     print("UPDATE complite.. start remove dublikate")
@@ -679,5 +681,5 @@ if __name__ == "__main__":
     #     select *  from hist_data where market is null  ;
 
     # my mysql request end###
-
+    # ALTER IGNORE     TABLE    tiker_report ADD UNIQUE(day_close, tiker(6));
     # load_from_mysql(db_connection_str)
