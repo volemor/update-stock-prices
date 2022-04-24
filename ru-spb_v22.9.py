@@ -50,10 +50,15 @@ v22.7 добавлена многопоточность, изменен спис
 
 v22.8   добавлена запись расчетных датафреймов в таблицу mysql --- tiker_report
         -- те же столбцы, плюс market_name .. остальное вроде такое же все 
+v22.9  ---добавлен просчет актуальности tiker_report - по сравнению с history_date
+        если в tiker_report данные старше, чтом history_date, то пересчет делается, 
+        и результат расчетов добавляется в tiker_report -> sql
+        'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
+        --- немного порезали подстчет отчетности teh_an 
 TODO ::::
-        !!!сейчас записываем по итогам расчетов , плюс наверное нужно делать таблицу статуса - потом будем проверять -- может уже расчитано все!!
-        !!! или может делать налету - построчно..  
+ 
         Select tiker, max(day_close) as day_close_max, market from tiker_report group by tiker;
+        
         !!сделать возможность добавления кучи списков тикеров - и чтоб ексель добавлял странички налету - при любом кол-ве списков
         !!! упростить шаблон екселя - все равно все страницы равны --- тока разница в таблице теханализа..  
         1000200) надо придумать шапку головную - что когда запускать --- вот модуль insert_history_date_into_sql(): - когда запускаем ??   
@@ -304,7 +309,6 @@ def statistic_data_base(df_last_update):
         listing_ll = pd.Series(
             {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
         listing_ll['date_max'].sort()
-
         for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
             print(
                 f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
@@ -333,6 +337,7 @@ def sql_base_make(prj_path, sql_login,
     создаем словарь thre_sql_return, в который складываем по ключу результат выполнения обращения в базу данных
     и потом обращаемся к значению и берем его после выполнения запроса.
     """
+
     def thread_sql_q(key, sql_command):  # многопоточные запросы в sql  через словарь
         local_start_time = time.time()
         if key == 'hist_US':
@@ -369,7 +374,6 @@ def sql_base_make(prj_path, sql_login,
     thread_link[sql_comm_key[1]].start()
     thread_link[sql_comm_key[7]].start()
 
-
     '''
     надо придумать как отлавливать содержимое thre_sql_return - данные могут записаться в другом порядке ---- 
     наверное надо по колонкам определяться - .column -- и смотреть..
@@ -394,33 +398,31 @@ def sql_base_make(prj_path, sql_login,
        base_status: -> df_last_update
         index | st_id  | date_max  | Currency | date_min | market 
        '''
+    df_tiker_report = thre_sql_return[sql_comm_key[7]]
 
-    def tiker_report_and_hist_data_compare(df_tiker_report_max, df_last_up_copy):
-        # модуль определения необходимости расчета нового tiker_report на основе max_date
-        df_last_up_copy['need_to_update'] = False
-        # print(df_tiker_report_max)
+    def tiker_report_and_hist_data_compare():
+        '''модуль определения необходимости расчета нового tiker_report на основе max_date
+        '''
+        nonlocal df_tiker_report, df_last_update
 
-        for index in df_last_up_copy['index']:
-            stiker = df_last_up_copy.at[index, 'st_id']
+        df_last_update = pd.merge(df_last_update, df_tiker_report.rename(columns={'tiker': 'st_id'}), on='st_id')
+        df_last_update['need_for_update'] = False
 
-            print(df_tiker_report_max[df_tiker_report_max['tiker'] == stiker].iloc[0]['max_day_close'])
+        for index_loc in df_last_update.index:
+            if pd.Timestamp(df_last_update.at[index_loc, 'date_max']) > pd.Timestamp(
+                    df_last_update.at[index_loc, 'max_day_close']):
+                df_last_update.at[index_loc, 'need_for_update'] = True
 
-        exit()
+        print('True', len(df_last_update[df_last_update['need_for_update'] == True]))
+        # print('True', df_last_update[df_last_update['need_for_update'] == True])
+        print('False', len(df_last_update[df_last_update['need_for_update'] == False]))
+        # print('False', df_last_update[df_last_update['need_for_update'] == False])
+        # print('all', df_last_update)
+        print('df_last_update', df_last_update.head(5))
 
-        # df_last_up_copy[df_last_up_copy['st_id'] == ]['date_max']
 
     ## тестируем проверку tiker_report и df_last_update на соотвествие
-    df_tiker_report = thre_sql_return[sql_comm_key[7]]
-    # tiker_report_and_hist_data_compare(df_tiker_report, df_last_update)
-
-    last_day_sql = df_last_update.iloc[1]['date_max'].date()
-    # if (today_date.date() - last_day_sql).days != 0 :
-    #     df_last_update = pd.read_sql(
-    #         'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id;',
-    #         con=db_connection)  # загрузили список тикеров из базы с последней датой
-    #     df_last_update['today_day'] = datetime.today()
-    #     df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')  # append , replace
-    #     save_log(prj_path, 'base_status table is Update ')
+    tiker_report_and_hist_data_compare()
 
     thread_link[sql_comm_key[3]].start()
     thread_link[sql_comm_key[2]].join()
@@ -430,33 +432,51 @@ def sql_base_make(prj_path, sql_login,
     '''
      считаем статистику по теханализу 
     '''
-    max_teh_date = pd.DataFrame.max(df_last_teh.date_max[:])
-    teh_full = round(len(df_last_teh[df_last_teh.date_max == max_teh_date]) / len(df_last_teh), 2)
-    min_teh_date = pd.DataFrame.min(df_last_teh.date_max[:])
-    print('teh_Full', teh_full * 100, '% Have max date')
-    save_log(prj_path, 'teh_full ' + str(teh_full * 100) + '% have MAX date')
-    if teh_full != 1:
-        save_log(prj_path, 'base teh analis not full - only ' + str(teh_full * 100) + ' %')
-        max_teh_date = min_teh_date  # берем для использования минимальную из максимальных
-    save_log(prj_path, 'teh_date - [' + str(max_teh_date) + ']')
-    max_stick, start_stick_num = len(df_last_update['st_id']), 0
-    max_date = df_last_update.date_max[:].max()
-    print('max date for hist_date', max_date)
 
-    for indexx in df_last_update['st_id']:
-        if (today_date - df_last_update[df_last_update.st_id == indexx].iloc[0]['date_max']).days <= max_old_days:
-            start_stick_num += 1
-            # print(indexx)
-    message = f'hist_data tiker smoler [{max_old_days}] days [{start_stick_num}], all tikers [{max_stick}], part=[{round(100 * start_stick_num / max_stick, 1)}] %'
-    save_log(prj_path, message)
-    print(message)
-    df_out_date = df_last_update[df_last_update.date_max <= max_date - timedelta(days=max_old_days)]
-    df_last_update = df_last_update[df_last_update.date_max > max_date - timedelta(
-        days=max_old_days)]  ### отрезаем все тикеры , для которых данные старые!!!!!!!!! --- так можно все порезать так, что считать будет нечего
-    statistic_data_base(df_last_update)
-    df_out_date.sort_values(by=['date_max'], inplace=True)
-    save_log(prj_path,
-             f'len of outdate of hist_date {len(df_out_date)} from {len(df_last_update)} id [{round(100 * len(df_out_date) / len(df_last_update), 0)}]%')
+    def teh_an_stat_for_print():
+        nonlocal df_last_update, df_last_teh, prj_path
+        max_teh_date = pd.DataFrame.max(df_last_teh.date_max[:])
+        teh_full = round(len(df_last_teh[df_last_teh.date_max == max_teh_date]) / len(df_last_teh), 2)
+        min_teh_date = pd.DataFrame.min(df_last_teh.date_max[:])
+        print('teh_Full', teh_full * 100, '% Have max date')
+        save_log(prj_path, 'teh_full ' + str(teh_full * 100) + '% have MAX date')
+        if teh_full != 1:
+            save_log(prj_path, 'base teh analis not full - only ' + str(teh_full * 100) + ' %')
+        max_teh_date = min_teh_date  # берем для использования минимальную из максимальных
+        save_log(prj_path, 'teh_date - [' + str(max_teh_date) + ']')
+
+
+    def history_date_stat():
+        nonlocal df_last_update
+        global prj_path, max_old_days
+        # max_stick, start_stick_num = len(df_last_update['st_id']), 0
+        # max_date = df_last_update.date_max[:].max()
+        # print('max date for hist_date', max_date)
+        # for indexx in df_last_update['st_id']:
+        #     if (today_date - df_last_update[df_last_update.st_id == indexx].iloc[0]['date_max']).days <= max_old_days:
+        #         start_stick_num += 1
+
+        # message = f'hist_data tiker smoler [{max_old_days}] days [{start_stick_num}], all tikers [{max_stick}], part=[{round(100 * start_stick_num / max_stick, 1)}] %'
+        # save_log(prj_path, message)
+        # print(message)
+        # df_out_date = df_last_update[df_last_update.date_max <= max_date - timedelta(days=max_old_days)]
+
+        df_last_update = df_last_update[df_last_update['need_for_update'] == True]
+        #### отрезаем только то, что еще не обновлено!!!!!
+        # print('all for need to update', df_last_update.head(10))
+        # df_last_update = df_last_update[df_last_update.date_max > max_date - timedelta( days=max_old_days)]
+        ### отрезаем все тикеры , для которых данные старые!!!!!!!!! --- так можно все порезать так, что считать будет нечего
+        # exit()
+
+        # save_log(prj_path, )
+        statistic_data_base(df_last_update)
+        # df_out_date.sort_values(by=['date_max'], inplace=True)
+        # save_log(prj_path,
+        #          f'len of outdate of hist_date {len(df_out_date)} from {len(df_last_update)} id [{round(100 * len(df_out_date) / len(df_last_update), 0)}]%')
+
+    teh_an_stat_for_print()
+    history_date_stat()
+
 
     thread_link[sql_comm_key[3]].join()
     thread_link[sql_comm_key[4]].start()
@@ -502,8 +522,8 @@ def sql_base_make(prj_path, sql_login,
                 message = 'SPB error ' + str(ind)
                 save_log(prj_path, message)
                 continue
-            # print(my_df)
             big_df = pd.concat([big_df, my_df])
+
     print('len big df SPB', len(big_df))
 
     bif_report_tables_to_sql(big_df.copy(), 'SPB')
@@ -539,6 +559,10 @@ def sql_base_make(prj_path, sql_login,
     dmitry_df = big_df[dmitry_list_for_filter].copy()
     print('\n[', datetime.today(), ']', 'stage 4 (zina)..[Collecting]')
     zina_df = big_df[big_df['tiker'].isin([*zina_list_spb])].copy()
+    # TODO: надо теперь придумать подгрузку из sql последних данных - иначе в файл запишется тока то, что еще не записалось \
+    '''т.е. надо формировать файл из записей из базы данных - или приклеивать или заново запрос делать с последними данными
+    
+    '''
 
     if datetime.today().weekday() == 5:
 
@@ -587,10 +611,11 @@ def sql_base_make(prj_path, sql_login,
     print('\n[', datetime.today(), ']', (datetime.today() - start_timer).seconds, '[sec]')
     save_log(prj_path, '-----[' + str(datetime.today()) + '] ' + str(
         timedelta(seconds=((datetime.today() - start_timer).seconds))))
-    # bif_report_tables_to_sql(big_df, 'SPB')
-    # bif_report_tables_to_sql(big_df_ru.copy(), 'RU')
-    # bif_report_tables_to_sql(big_df_US.copy(), 'USA')
+
+    bif_report_tables_to_sql(big_df_ru.copy(), 'RU')
+    bif_report_tables_to_sql(big_df_US.copy(), 'USA')
     save_log(prj_path, 'SQL save complite')
+
     # exit()
     return name_for_save
 
