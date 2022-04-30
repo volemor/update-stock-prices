@@ -413,12 +413,12 @@ def sql_base_make(prj_path, sql_login,
                     df_last_update.at[index_loc, 'max_day_close']):
                 df_last_update.at[index_loc, 'need_for_update'] = True
 
-        print('True', len(df_last_update[df_last_update['need_for_update'] == True]))
+        print('need_for_update == True', len(df_last_update[df_last_update['need_for_update'] == True]))
         # print('True', df_last_update[df_last_update['need_for_update'] == True])
-        print('False', len(df_last_update[df_last_update['need_for_update'] == False]))
+        print('need_for_update == False', len(df_last_update[df_last_update['need_for_update'] == False]))
         # print('False', df_last_update[df_last_update['need_for_update'] == False])
         # print('all', df_last_update)
-        print('df_last_update', df_last_update.head(5))
+        # print('df_last_update', df_last_update.head(5))
 
 
     ## тестируем проверку tiker_report и df_last_update на соотвествие
@@ -436,10 +436,10 @@ def sql_base_make(prj_path, sql_login,
     def teh_an_stat_for_print():
         nonlocal df_last_update, df_last_teh, prj_path
         max_teh_date = pd.DataFrame.max(df_last_teh.date_max[:])
-        teh_full = round(len(df_last_teh[df_last_teh.date_max == max_teh_date]) / len(df_last_teh), 2)
+        teh_full = round(100*len(df_last_teh[df_last_teh.date_max == max_teh_date]) / len(df_last_teh), 2)
         min_teh_date = pd.DataFrame.min(df_last_teh.date_max[:])
-        print('teh_Full', teh_full * 100, '% Have max date')
-        save_log(prj_path, 'teh_full ' + str(teh_full * 100) + '% have MAX date')
+        print('teh_Full', teh_full , '% Have max date')
+        save_log(prj_path, 'teh_full ' + str(teh_full) + '% have MAX date')
         if teh_full != 1:
             save_log(prj_path, 'base teh analis not full - only ' + str(teh_full * 100) + ' %')
         max_teh_date = min_teh_date  # берем для использования минимальную из максимальных

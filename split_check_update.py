@@ -98,7 +98,8 @@ def sql_base_clear_for_split_list(list_for_replase_data):
         for index in range(len(list_for_replase_df)):  ### set zero to first row sql data
             try:
                 print((db_connection.execute(
-                    f"update hist_data set Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
+## добавили дату конкретную.. посмотрим как будет работать
+                    f"update hist_data set date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
                 list_sero_set.append(list_for_replase_df.iat[index, 1])
             except:
                 print(list_for_replase_df.iat[index, 1], 'set ZERO to first row error')
@@ -107,7 +108,9 @@ def sql_base_clear_for_split_list(list_for_replase_data):
 
     else:
         save_log(f"SPLIT list is empty", linux_path)
-
+# insert into hist_data  (index,Date , Open, High,  Low, Close, Volume, st_id , Currency, market) values (0, '2019-08-01', 0,0,0,0,0, 'REDFY', 'USD', 'US';
+# update hist_data set date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'CRMBQ'
+# set Date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'REDFY';
 
 # TODO: наверное надо включать в лог запись - что за модуль сделал хапись - а то update or split check??
 def save_log(message, linux_path=''):  # сохраняет в лог файл сообщение..
