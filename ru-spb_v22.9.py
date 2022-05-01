@@ -55,19 +55,23 @@ v22.9  ---добавлен просчет актуальности tiker_report 
         и результат расчетов добавляется в tiker_report -> sql
         'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
         --- немного порезали подстчет отчетности teh_an 
+        делаем модуль -- from_sql_report_to_excel - для выгрузки из sql свежих данных и передаем дальше в ексель -== надо переделать(сделать) функцию записи в ексель отдельно 
 TODO ::::
  
         Select tiker, max(day_close) as day_close_max, market from tiker_report group by tiker;
         
         !!сделать возможность добавления кучи списков тикеров - и чтоб ексель добавлял странички налету - при любом кол-ве списков
-        !!! упростить шаблон екселя - все равно все страницы равны --- тока разница в таблице теханализа..  
+        !!! упростить шаблон екселя - все равно все страницы равны --- тока разница в таблице теханализа..
+        !!! сделать при записи отчета в ексель из шаблона - подготовку пользовательских сборок  в неограниченном количестве - типа по ключевой фразе - ***_list - 
+        подгружать шаблон, заполнять его, записывать, подгружать повторно и так далее - цикл делать - может слорь этих списков сделать какой то вложенный???  
         1000200) надо придумать шапку головную - что когда запускать --- вот модуль insert_history_date_into_sql(): - когда запускаем ??   
                 может его в update_sql.py перенести или в split_check?? --
-                 наверное последнеее логичнее - update_sql.py -- каждый день запускается в свое окно! а   split_check раз в неделю..      
+                 наверное последнеее логичнее - update_sql.py -- каждый день запускается в свое окно! а   split_check раз в неделю..
+              
 '''
 
 
-# TODO: добавить модуль для считывания из базы данных mysql и в эксель!!! и потом дальнейшее форматирование)))
+# TODO: добавить модуль для считывания из базы данных mysql и в эксель -- from_sql_report_to_excel!!! и потом дальнейшее форматирование)))
 
 def bif_report_tables_to_sql(df, market):
     """записываем расчетную табличку в sql базу таблица -- tiker_report"""
@@ -355,17 +359,18 @@ def sql_base_make(prj_path, sql_login,
         print('-----END load SQL Thread for ', key, f' time to complite [{delta_time}] sec')
 
     # команды для запросов в базу данных в многопоточном режиме
-    sql_comm_key = ['tiker_branch', 'base_status', 'teh_an_status', 'hist_SPB', 'hist_RU', 'hist_US', 'teh_an_base',
-                    'tiker_report']
-    sql_command_list = ['Select * from tiker_branch ;',
-                        'Select * from base_status ;',
-                        'Select st_id, max(date) as date_max from teh_an group by st_id',
-                        f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';',
-                        f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
-                        f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
-                        'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
-                        'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
-                        ]
+    # переменные лежат в конфиге
+    # sql_comm_key = ['tiker_branch', 'base_status', 'teh_an_status', 'hist_SPB', 'hist_RU', 'hist_US', 'teh_an_base',
+    #                 'tiker_report']
+    # sql_command_list = ['Select * from tiker_branch ;',
+    #                     'Select * from base_status ;',
+    #                     'Select st_id, max(date) as date_max from teh_an group by st_id',
+    #                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';',
+    #                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
+    #                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
+    #                     'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
+    #                     'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
+    #                     ]
     for key, index_name in zip(sql_comm_key, sql_command_list):
         thread_link[key] = threading.Thread(target=thread_sql_q, args=(key, index_name,))
 
@@ -420,7 +425,6 @@ def sql_base_make(prj_path, sql_login,
         # print('all', df_last_update)
         # print('df_last_update', df_last_update.head(5))
 
-
     ## тестируем проверку tiker_report и df_last_update на соотвествие
     tiker_report_and_hist_data_compare()
 
@@ -436,47 +440,23 @@ def sql_base_make(prj_path, sql_login,
     def teh_an_stat_for_print():
         nonlocal df_last_update, df_last_teh, prj_path
         max_teh_date = pd.DataFrame.max(df_last_teh.date_max[:])
-        teh_full = round(100*len(df_last_teh[df_last_teh.date_max == max_teh_date]) / len(df_last_teh), 2)
+        teh_full = round(100 * len(df_last_teh[df_last_teh.date_max == max_teh_date]) / len(df_last_teh), 2)
         min_teh_date = pd.DataFrame.min(df_last_teh.date_max[:])
-        print('teh_Full', teh_full , '% Have max date')
+        print('teh_Full', teh_full, '% Have max date')
         save_log(prj_path, 'teh_full ' + str(teh_full) + '% have MAX date')
         if teh_full != 1:
             save_log(prj_path, 'base teh analis not full - only ' + str(teh_full * 100) + ' %')
         max_teh_date = min_teh_date  # берем для использования минимальную из максимальных
         save_log(prj_path, 'teh_date - [' + str(max_teh_date) + ']')
 
-
     def history_date_stat():
         nonlocal df_last_update
         global prj_path, max_old_days
-        # max_stick, start_stick_num = len(df_last_update['st_id']), 0
-        # max_date = df_last_update.date_max[:].max()
-        # print('max date for hist_date', max_date)
-        # for indexx in df_last_update['st_id']:
-        #     if (today_date - df_last_update[df_last_update.st_id == indexx].iloc[0]['date_max']).days <= max_old_days:
-        #         start_stick_num += 1
-
-        # message = f'hist_data tiker smoler [{max_old_days}] days [{start_stick_num}], all tikers [{max_stick}], part=[{round(100 * start_stick_num / max_stick, 1)}] %'
-        # save_log(prj_path, message)
-        # print(message)
-        # df_out_date = df_last_update[df_last_update.date_max <= max_date - timedelta(days=max_old_days)]
-
         df_last_update = df_last_update[df_last_update['need_for_update'] == True]
-        #### отрезаем только то, что еще не обновлено!!!!!
-        # print('all for need to update', df_last_update.head(10))
-        # df_last_update = df_last_update[df_last_update.date_max > max_date - timedelta( days=max_old_days)]
-        ### отрезаем все тикеры , для которых данные старые!!!!!!!!! --- так можно все порезать так, что считать будет нечего
-        # exit()
-
-        # save_log(prj_path, )
         statistic_data_base(df_last_update)
-        # df_out_date.sort_values(by=['date_max'], inplace=True)
-        # save_log(prj_path,
-        #          f'len of outdate of hist_date {len(df_out_date)} from {len(df_last_update)} id [{round(100 * len(df_out_date) / len(df_last_update), 0)}]%')
 
     teh_an_stat_for_print()
     history_date_stat()
-
 
     thread_link[sql_comm_key[3]].join()
     thread_link[sql_comm_key[4]].start()
@@ -687,6 +667,28 @@ def pd_df_to_sql(df, sql_login, st_name, ind,
         df.to_sql(name='hist_data', con=engine, if_exists='append')  # append , replace
     except:
         print('pd_to_sql --- [error]')
+
+
+def from_sql_report_to_excel():
+    '''
+    отправляется запрос в tiker_report - ищем максимумы по датам day_close--- и получается df_...  для записи в excel файл
+    !!! может сделать проверку -- соответствия day_close и max_date, и если соответствуют, урезать расчет базы данных-- хотя это делается уже
+
+    наверное надо сделать ссылку на массив и передать ее через словарь в return.. а там на выходе словить и разложить.
+    :return: df_...  для передачи в запись в ексель  или может сразу в эксель??
+    '''
+    sql_message = ''
+    df_big = pd.read_sql(sql_message, con=create_engine(sql_login))
+    df_ru = df_big[df_big['market'] == 'RU']
+    df_spb = df_big[df_big['market'] == 'SPB']
+    df_usa = df_big[df_big['market'] == 'USA']
+    dmitry_list_for_filter = df_spb['tiker'].isin([*dmitry_list_spb])
+    dmitry_df = df_spb[dmitry_list_for_filter].copy()
+    zina_df = df_spb[df_spb['tiker'].isin([*zina_list_spb])].copy()
+    '''
+    ну как то так... 
+    '''
+    # return True
 
 
 def send_email(name_for_save, name_for_save_crop):
