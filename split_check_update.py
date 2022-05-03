@@ -84,6 +84,7 @@ def sql_base_clear_for_split_list(list_for_replase_data):
         list_for_replase_df = base_status_df.loc[base_status_df['st_id'].isin(list_for_replase_data)][
             ['st_id', 'date_min']]
         list_for_replase_df.reset_index(inplace=True)
+        save_log(f"now try to delete [{list_for_replase_data}]", linux_path)
         print(list_for_replase_df[['st_id', 'date_min']])
         remove_list, list_sero_set = [], []
         for index in range(len(list_for_replase_df)):  ### Delete sql list split data
@@ -92,6 +93,7 @@ def sql_base_clear_for_split_list(list_for_replase_data):
                     f"delete from hist_data where st_id ='{list_for_replase_df.iat[index, 1]}' and date > '{(list_for_replase_df.iat[index, 2]).strftime('%Y-%m-%d')}' ")).fetchall())
                 remove_list.append(list_for_replase_df.iat[index, 1])
             except:
+                save_log(f"delete error [{list_for_replase_df.iat[index, 1]}]", linux_path)
                 print(list_for_replase_df.iat[index, 1], 'delete error')
                 continue
         save_log(f"remove DATA from SQL base [{remove_list}]", linux_path)
@@ -99,15 +101,16 @@ def sql_base_clear_for_split_list(list_for_replase_data):
             try:
                 print((db_connection.execute(
 ## добавили дату конкретную.. посмотрим как будет работать
-                    f"update hist_data set date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
+                    f"update hist_data set date = '2019-08-01', Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
                 list_sero_set.append(list_for_replase_df.iat[index, 1])
             except:
+                save_log(f"set ZERO to first row error[{list_for_replase_df.iat[index, 1]}]", linux_path)
                 print(list_for_replase_df.iat[index, 1], 'set ZERO to first row error')
                 continue
         save_log(f"SET ZERO DATA to first row of SQL base [{list_sero_set}]", linux_path)
-
     else:
         save_log(f"SPLIT list is empty", linux_path)
+
 # insert into hist_data  (index,Date , Open, High,  Low, Close, Volume, st_id , Currency, market) values (0, '2019-08-01', 0,0,0,0,0, 'REDFY', 'USD', 'US';
 # update hist_data set date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'CRMBQ'
 # set Date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'REDFY';
