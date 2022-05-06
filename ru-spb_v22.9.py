@@ -719,9 +719,9 @@ def send_email(name_for_save, name_for_save_crop):
         msg["From"] = mail_login
         msg["Subject"] = "Новый отчет " + str(datetime.today().strftime("%Y-%m-%d") + " для моих подписчиков")
 
-        ### test attache message
+
         msg.attach(MIMEText(message_status_tiker_report_for_email))
-        ## end test
+
 
         for file, mail_client_key in zip(file_name, mail_status):
             filename = os.path.basename(file)
