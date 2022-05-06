@@ -7,6 +7,7 @@ from datetime import datetime
 from datetime import timedelta
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from openpyxl.styles import PatternFill
 import investpy
 import numpy as np
@@ -306,23 +307,28 @@ def convert_df_to_np_from_sql(df1, stok_name, st_inv, col_list, branch,
     return df2  # готовим данные для записи в таблицу
 
 
-def statistic_data_base(df_last_update):
+def statistic_data_base(df_last_update, email_body_make=False):
     global prj_path
     ''' подсчет статистики актуальности базы данных, с охранением результата в лог'''
+    message_for_email_body = ''
     for market_s in df_last_update['market'].unique():
         listing_ll = pd.Series(
             {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
         listing_ll['date_max'].sort()
         for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
-            print(
-                f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
+            message_loc = f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] "
+            print(message_loc)
+            message_for_email_body += ''.join(message_loc)
             save_log(prj_path,
                      f"date for [{market_s}]=[{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] ")
+            message_for_email_body += '\n'
+    if email_body_make:
+        return message_for_email_body
 
 
 def sql_base_make(prj_path, sql_login,
                   col_list):  # Модуль загрузки данных из базы mysql и формирования отчетных таблиц
-    global branch_name_local
+    global branch_name_local, message_status_tiker_report_for_email
     start_timer = datetime.today()
     db_connection = create_engine(sql_login, connect_args={'connect_timeout': 10})  # connect to database
     big_df: DataFrame = pd.DataFrame(columns=list(col_list))
@@ -454,6 +460,9 @@ def sql_base_make(prj_path, sql_login,
         global prj_path, max_old_days
         df_last_update = df_last_update[df_last_update['need_for_update'] == True]
         statistic_data_base(df_last_update)
+
+    # компануем тело сообщения для email
+    message_status_tiker_report_for_email += ''.join(statistic_data_base(df_last_update, email_body_make=True))
 
     teh_an_stat_for_print()
     history_date_stat()
@@ -692,10 +701,12 @@ def from_sql_report_to_excel():
 
 
 def send_email(name_for_save, name_for_save_crop):
+    global message_status_tiker_report_for_email
     """ пробуем отправлять почту
     для отправки отбираются два файла - name_for_save_crop, name_for_save, склеиваются в один пакет 
     и отправляется по списку client_mail_vip
     """
+
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
     file_name = [name_for_save_crop, name_for_save]
@@ -707,6 +718,11 @@ def send_email(name_for_save, name_for_save_crop):
         msg = MIMEMultipart()
         msg["From"] = mail_login
         msg["Subject"] = "Новый отчет " + str(datetime.today().strftime("%Y-%m-%d") + " для моих подписчиков")
+
+        ### test attache message
+        msg.attach(MIMEText(message_status_tiker_report_for_email))
+        ## end test
+
         for file, mail_client_key in zip(file_name, mail_status):
             filename = os.path.basename(file)
             ftype, encoding = mimetypes.guess_type(file)

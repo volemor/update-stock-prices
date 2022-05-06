@@ -9,6 +9,8 @@ history_path = ''
 xlsx_sample = 'df_help_06.03.2022.xlsx'
 my_start_date = '2020-02-01'
 max_old_days = 25
+# глобальные переменные для отчетов
+message_status_tiker_report_for_email = 'выгрузка содержит актуальные отчеты на следующие даты торгов: \n'
 
 """
 пользовательские списки текеров
