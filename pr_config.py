@@ -1,4 +1,4 @@
-""" переменные для работы программы, пароли в отдельном файле """
+""" переменные для работы программы, а пароли в отдельном файле """
 sql_login = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
 path_linux = '/mnt/1T/opt/gig/My_Python/st_US/'
 path_history_linux = '/mnt/1T/opt/gig/My_Python/st_US/SAVE/'
