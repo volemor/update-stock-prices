@@ -12,24 +12,7 @@ max_old_days = 25
 # глобальные переменные для отчетов
 message_status_tiker_report_for_email = 'выгрузка содержит актуальные отчеты на следующие даты торгов: \n'
 
-"""
-пользовательские списки текеров
-"""
 
-dmitry_list_spb = {'SEDG', 'CSCO', 'ALB', 'AMAT', 'MU', 'SPCE', 'RBLX', 'APA', 'BYND', 'SPR', 'INTC', 'SQ',
-                   'TSLA', 'FSLR', 'NEE', 'DAL',
-                   'AA', 'PLAY', 'BABA', 'ARNC', 'PBF', 'AMD', 'NDAQ', 'QCOM', 'DVN', 'LTHM', 'COP',
-                   'NVDA', 'U', 'BIDU', 'SAVE', 'AAPL', 'MVIS', 'CCJ', 'MP', 'MTRN', 'COIN'}
-zina_list_spb = {'AA', 'APA', 'BA', 'FSLR', 'INTC', 'NEE', 'PBF', 'SPR', 'LTHM', 'SPCE', 'UAL', 'NVDA', 'NDAQ', 'AAPL'}
-
-# client_mail_vip = ['volemor@yandex.ru', 'azinaidav@mail.ru', 'krotar@mail.ru',
-#                    'ton2244@yandex.ru']  ## 'fedorov.efrem@gmail.com' ]
-# client_mail_not_vip = ['p.trubitsyn7@yandex.ru', 'dom_teh@mail.ru']
-
-
-""" словарь с адресами почты для рассылки"""
-mail_global_dict = {'vip': ['ton2244@yandex.ru', 'azinaidav@mail.ru', 'krotar@mail.ru', 'volemor@yandex.ru'],
-                    'not_vip': ['p.trubitsyn7@yandex.ru', 'dom_teh@mail.ru']}
 """ наименования столбцов для формирования датафрейма при расчетах таблицы tiker_report"""
 col_list = ['tiker', 'name', 'branch', 'today_close',
             'min_dek1', 'min_dek2', 'min_dek3', 'min_dek4',
