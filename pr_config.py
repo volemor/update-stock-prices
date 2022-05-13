@@ -6,11 +6,14 @@ path_win = ''
 path_history_win = 'D:\\YandexDisk\\корень\\отчеты\\'
 prj_path = ''
 history_path = ''
-xlsx_sample = 'df_help_06.03.2022.xlsx'
+# xlsx_sample = 'df_help_06.03.2022.xlsx'
+xlsx_sample = 'df_help_11.05.2022.xlsx'
 my_start_date = '2020-02-01'
 max_old_days = 25
 # глобальные переменные для отчетов
 message_status_tiker_report_for_email = 'выгрузка содержит актуальные отчеты на следующие даты торгов: \n'
+message_status_tiker_report_for_email_end = '\n Пожалуйста не отвечайте на это сообщение, оно рассылается автоматически! \n'
+io_streem = {}
 
 
 """ наименования столбцов для формирования датафрейма при расчетах таблицы tiker_report"""
@@ -41,7 +44,7 @@ col_list = ['tiker', 'name', 'branch', 'today_close',
 """ команды для управления мультипоточной загрузкой из базы данных"""
 
 sql_comm_key = ['tiker_branch', 'base_status', 'teh_an_status', 'hist_SPB', 'hist_RU', 'hist_US', 'teh_an_base',
-                'tiker_report']
+                'tiker_report', 'tiker_report_last_date']
 sql_command_list = ['Select * from tiker_branch ;',
                     'Select * from base_status ;',
                     'Select st_id, max(date) as date_max from teh_an group by st_id',
@@ -49,8 +52,20 @@ sql_command_list = ['Select * from tiker_branch ;',
                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
                     'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
-                    'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
+                    'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;',
+                    'Select tr.* from tiker_report tr join (select tr.tiker, max(tr.day_close) as day_close_max from tiker_report tr group by tr.tiker) tiker_report_max on tiker_report_max.tiker = tr.tiker and tiker_report_max.day_close_max = tr.day_close;'
                     ]
+sql_command_dict = {'tiker_branch':'Select * from tiker_branch ;'
+                    , 'base_status':'Select * from base_status ;'
+                    , 'teh_an_status':'Select st_id, max(date) as date_max from teh_an group by st_id'
+                    , 'hist_SPB': f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';'
+                    , 'hist_RU':  f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';'
+                    , 'hist_US':f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';'
+                    , 'teh_an_base': 'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;'
+                    , 'tiker_report': 'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
+                    , 'tiker_report_last_date':'Select tr.* from tiker_report tr join (select tr.tiker, max(tr.day_close) as day_close_max from tiker_report tr group by tr.tiker) tiker_report_max on tiker_report_max.tiker = tr.tiker and tiker_report_max.day_close_max = tr.day_close;'
+
+}
 
 """  базовый словарь sheet_name для сохранения df в excel """
 

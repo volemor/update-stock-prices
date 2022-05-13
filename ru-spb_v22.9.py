@@ -1,5 +1,5 @@
 ﻿import mimetypes
-import os
+import os, io
 import smtplib
 import time
 from datetime import date
@@ -56,7 +56,10 @@ v22.9  ---добавлен просчет актуальности tiker_report 
         и результат расчетов добавляется в tiker_report -> sql
         'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
         --- немного порезали подстчет отчетности teh_an 
-        делаем модуль -- from_sql_report_to_excel - для выгрузки из sql свежих данных и передаем дальше в ексель -== надо переделать(сделать) функцию записи в ексель отдельно 
+        делаем модуль -- from_sql_report_to_excel - для выгрузки из sql свежих данных и передаем дальше в ексель -== надо переделать(сделать) функцию записи в ексель отдельно
+         
+        !!! начали переделку под потоки - теперь эксели сохраняются тока в яндекс диск... ---- надо проверить еще... 
+        
 TODO ::::
  
         Select tiker, max(day_close) as day_close_max, market from tiker_report group by tiker;
@@ -327,7 +330,8 @@ def statistic_data_base(df_last_update, email_body_make=False):
 
 
 def sql_base_make(prj_path, sql_login,
-                  col_list):  # Модуль загрузки данных из базы mysql и формирования отчетных таблиц
+                  col_list):  # Модуль загрузки данных из базы mysql, расчета всех показателей сохранения их
+    # в базу данных ( переносим в новую функцию---формирования отчетных таблиц)
     global branch_name_local, message_status_tiker_report_for_email
     start_timer = datetime.today()
     db_connection = create_engine(sql_login, connect_args={'connect_timeout': 10})  # connect to database
@@ -339,6 +343,7 @@ def sql_base_make(prj_path, sql_login,
                    'weekly_ema_signal 200', 'monthly_sma_signal 200', 'monthly_ema_signal 200', 'EPS', 'P_E']
     teh_an_df_nodata = pd.DataFrame(columns=teh_an_list)
     teh_an_df_nodata.loc[len(teh_an_df_nodata)] = 'No DAta'
+
     big_df_ru = pd.DataFrame(columns=list(col_list))
     thre_sql_return, thread_link = {}, {}
 
@@ -364,19 +369,6 @@ def sql_base_make(prj_path, sql_login,
         delta_time = round(time.time() - local_start_time, 2)
         print('-----END load SQL Thread for ', key, f' time to complite [{delta_time}] sec')
 
-    # команды для запросов в базу данных в многопоточном режиме
-    # переменные лежат в конфиге
-    # sql_comm_key = ['tiker_branch', 'base_status', 'teh_an_status', 'hist_SPB', 'hist_RU', 'hist_US', 'teh_an_base',
-    #                 'tiker_report']
-    # sql_command_list = ['Select * from tiker_branch ;',
-    #                     'Select * from base_status ;',
-    #                     'Select st_id, max(date) as date_max from teh_an group by st_id',
-    #                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';',
-    #                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
-    #                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
-    #                     'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
-    #                     'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
-    #                     ]
     for key, index_name in zip(sql_comm_key, sql_command_list):
         thread_link[key] = threading.Thread(target=thread_sql_q, args=(key, index_name,))
 
@@ -385,10 +377,6 @@ def sql_base_make(prj_path, sql_login,
     thread_link[sql_comm_key[1]].start()
     thread_link[sql_comm_key[7]].start()
 
-    '''
-    надо придумать как отлавливать содержимое thre_sql_return - данные могут записаться в другом порядке ---- 
-    наверное надо по колонкам определяться - .column -- и смотреть..
-    '''
     # отрасли
     branch_name = thre_sql_return[sql_comm_key[0]]  ##pd.read_sql(sql_command_list[0], con=db_connection)
     thread_link[sql_comm_key[2]].start()
@@ -463,7 +451,7 @@ def sql_base_make(prj_path, sql_login,
 
     # компануем тело сообщения для email
     message_status_tiker_report_for_email += ''.join(statistic_data_base(df_last_update, email_body_make=True))
-
+    message_status_tiker_report_for_email += message_status_tiker_report_for_email_end
     teh_an_stat_for_print()
     history_date_stat()
 
@@ -514,8 +502,8 @@ def sql_base_make(prj_path, sql_login,
             big_df = pd.concat([big_df, my_df])
 
     print('len big df SPB', len(big_df))
-
-    bif_report_tables_to_sql(big_df.copy(), 'SPB')
+    if len (big_df) != 0:
+        bif_report_tables_to_sql(big_df.copy(), 'SPB')
 
     thread_link[sql_comm_key[4]].join()
     df_ru = thre_sql_return[sql_comm_key[4]]
@@ -585,34 +573,41 @@ def sql_base_make(prj_path, sql_login,
     else:
         print('\n[', datetime.today(), ']', 'today not for stage 5 -- (US), see later -(need 5 day of weekday)')
 
-    name_for_save = str(prj_path) + 'sql_make-' + str(datetime.today().date()) + '.xlsx'
-    with pd.ExcelWriter(name_for_save) as writer:  # записываем отчетный файл
-        big_df.to_excel(writer, sheet_name='SPB')  # считаем весь рынок SPB
-        big_df_ru.to_excel(writer, sheet_name='RU')  # считаем весь рынок RU
-        big_df_US.to_excel(writer, sheet_name='USA')  # считаем весь рынок USA
-        df_teh.to_excel(writer, sheet_name='Teh_analis_all')  #
-        dmitry_df.to_excel(writer, sheet_name='D_list')
-        zina_df.to_excel(writer, sheet_name='Z_list')
-        # считаем весь рынок + волатильность RU
-        # считаем весь рынок + волатильность SPB
+    # name_for_save = str(prj_path) + 'sql_make-' + str(datetime.today().date()) + '.xlsx'
 
-    print('\n[', datetime.today(), ']', 'EXCEL file .... [SAVED]')
+    # переводим в функцию sql_report_to_excel
+    # with pd.ExcelWriter(io_streem["sql_make"]) as writer:  # записываем отчетный поток!!!
+    #     big_df.to_excel(writer, sheet_name='SPB')  # считаем весь рынок SPB
+    #     big_df_ru.to_excel(writer, sheet_name='RU')  # считаем весь рынок RU
+    #     big_df_US.to_excel(writer, sheet_name='USA')  # считаем весь рынок USA
+    #     df_teh.to_excel(writer, sheet_name='Teh_analis_all')  #
+    #     dmitry_df.to_excel(writer, sheet_name='D_list')
+    #     zina_df.to_excel(writer, sheet_name='Z_list')
+    #     # считаем весь рынок + волатильность RU
+    #     # считаем весь рынок + волатильность SPB
+    #
+    # # print('\n[', datetime.today(), ']', 'EXCEL file .... [SAVED]')
     print('\n[', datetime.today(), ']', (datetime.today() - start_timer).seconds, '[sec]')
     save_log(prj_path, '-----[' + str(datetime.today()) + '] ' + str(
         timedelta(seconds=((datetime.today() - start_timer).seconds))))
+    if len(big_df_ru)!= 0:
+        bif_report_tables_to_sql(big_df_ru.copy(), 'RU')
+    if len (big_df_US)!=0:
+        bif_report_tables_to_sql(big_df_US.copy(), 'USA')
 
-    bif_report_tables_to_sql(big_df_ru.copy(), 'RU')
-    bif_report_tables_to_sql(big_df_US.copy(), 'USA')
     save_log(prj_path, 'SQL save complite')
 
     # exit()
-    return name_for_save
+    # return io_streem["sql_make"]
 
 
 def excel_format(prj_path, name_for_save, history_path):  # форматирование отчетного файла после записи
     redFill = PatternFill(start_color='FFFF0000',
                           end_color='FFFF0000',
                           fill_type='solid')
+    # пробуем заменить на поток!!! - пока не получилось
+    # name_for_save_crop = io_streem['excel_format_all'] = io.BytesIO()
+    # name_for_save = io_streem['excel_format_d'] = io.BytesIO()
 
     wb_help = load_workbook(filename=str(prj_path) + xlsx_sample)  # шаблон форматирования
     shit_n = wb_help.sheetnames
@@ -622,6 +617,7 @@ def excel_format(prj_path, name_for_save, history_path):  # форматиров
     d_list_list = []
     for shit_m in tqdm(shit_n):
         ws = wb_help[shit_m]
+
         df_l = pd.read_excel(name_for_save, engine='openpyxl', sheet_name=shit_m)
         print(ws)
         for r in dataframe_to_rows(df_l, index=False, header=False):
@@ -637,13 +633,10 @@ def excel_format(prj_path, name_for_save, history_path):  # форматиров
         my_filter = df_l_spb['tiker'].isin([*d_list_list])
         ws = wb_help['SPB']
         for index_x in df_l_spb[my_filter].index:
-            ws[f'B{index_x + 7}'].fill = redFill
+            ws[f'C{index_x + 7}'].fill = redFill
         print(f"SPB tiker from d_list -- fill [{len(d_list_list)}]")
 
         # ws.freeze_panes = 'E7'
-    # print(f'Now remove old file [{os.pardir} {name_for_save}]')
-    # save_log(prj_path, str(f'Now remove old file [{os.pardir} {name_for_save}]'))
-    # os.remove(name_for_save)
     for s_name in shit_n:
         sheet = wb_help[s_name]
         m_row = sheet.max_row
@@ -651,8 +644,9 @@ def excel_format(prj_path, name_for_save, history_path):  # форматиров
         print(s_name, m_row, m_col)
 
     cur_date_for_file_name = str(date.today().day) + '-' + str(date.today().month) + '-' + str(date.today().year)
-    name_for_save = str(prj_path) + "d-отчет-" + cur_date_for_file_name + ".xlsx"
-    wb_help.save(name_for_save)
+    name_for_save_file = str(prj_path) + "d-отчет-" + cur_date_for_file_name + ".xlsx"  # заменили на поток
+
+    wb_help.save(name_for_save_file)
     save_log(prj_path, str(wb_help.sheetnames))
     wb_help.save(str(history_path) + "d-отчет-" + cur_date_for_file_name + ".xlsx")  # save to Yandex drive
     pfd = wb_help['D_list']
@@ -660,13 +654,14 @@ def excel_format(prj_path, name_for_save, history_path):  # форматиров
     pfd = wb_help["Z_list"]
     wb_help.remove(pfd)
     save_log(prj_path, str(wb_help.sheetnames))
-    name_for_save_crop = str(history_path) + "all-отчет-" + cur_date_for_file_name + ".xlsx"
+    name_for_save_crop = str(history_path) + "all-отчет-" + cur_date_for_file_name + ".xlsx"  # заменили на поток
     wb_help.save(name_for_save_crop)
 
     print('[', datetime.today(), ']', 'EXCEL format.. [Complite]')
     print('[', datetime.today(), ']', 'EXCEL save to YD.. [Complite]')
 
-    return name_for_save, name_for_save_crop
+    return name_for_save_file, name_for_save_crop
+    # return io_streem['excel_format_d'], io_streem['excel_format_all']   # name_for_save, name_for_save_crop
 
 
 def pd_df_to_sql(df, sql_login, st_name, ind,
@@ -678,26 +673,53 @@ def pd_df_to_sql(df, sql_login, st_name, ind,
         print('pd_to_sql --- [error]')
 
 
-def from_sql_report_to_excel():
+def from_tiker_reportLast_to_excel():
     '''
-    отправляется запрос в tiker_report - ищем максимумы по датам day_close--- и получается df_...  для записи в excel файл
-    !!! может сделать проверку -- соответствия day_close и max_date, и если соответствуют, урезать расчет базы данных-- хотя это делается уже
+        отправляется запрос в tiker_report - ищем максимумы по датам day_close--- и получается df_...  для записи в excel файл
+        !!! может сделать проверку -- соответствия day_close и max_date, и если соответствуют, урезать расчет базы данных-- хотя это делается уже
 
-    наверное надо сделать ссылку на массив и передать ее через словарь в return.. а там на выходе словить и разложить.
-    :return: df_...  для передачи в запись в ексель  или может сразу в эксель??
-    '''
-    sql_message = ''
-    df_big = pd.read_sql(sql_message, con=create_engine(sql_login))
-    df_ru = df_big[df_big['market'] == 'RU']
-    df_spb = df_big[df_big['market'] == 'SPB']
-    df_usa = df_big[df_big['market'] == 'USA']
-    dmitry_list_for_filter = df_spb['tiker'].isin([*dmitry_list_spb])
-    dmitry_df = df_spb[dmitry_list_for_filter].copy()
-    zina_df = df_spb[df_spb['tiker'].isin([*zina_list_spb])].copy()
-    '''
-    ну как то так... 
-    '''
-    # return True
+        наверное надо сделать ссылку на массив и передать ее через словарь в return.. а там на выходе словить и разложить.
+        :return: df_...  для передачи в запись в ексель или может сразу в эксель -- в поток ??
+        '''
+
+    global io_streem
+    print('start -- from_tiker_reportLast_to_excel')
+    io_streem["sql_make_to_excel"] = io.BytesIO()  # поток для сохранения файлов перед обработкой
+    engine = create_engine(sql_login)
+    tiker_report_last_df = pd.read_sql(sql_command_dict['tiker_report_last_date'], con=engine)
+    df_teh = pd.read_sql(sql_command_dict['teh_an_base'], con=engine)
+
+    stat_market_list = {}
+
+    def statistic():  # просто считаем статистику новизны отчетной базы
+        print('статистика базы tiker_report:')
+        for market in tiker_report_last_df['market'].unique():
+            # stat_list = pd.Series({'day_close': [tiker_report_last_df[tiker_report_last_df['market'] == market]['day_close'].unique()]})
+            stat_list = pd.Series(
+                {c: tiker_report_last_df[tiker_report_last_df['market'] == market][c].unique() for c in
+                 tiker_report_last_df})
+            # stat_list.sort()
+            stat_list['day_close'].sort()
+            stat_market_list[market] = stat_list['day_close']
+            for index in range(len(stat_list['day_close'])-3, len(stat_list['day_close'])):
+                print(
+                    f"[{market}]to date[{pd.to_datetime(stat_list['day_close'][index]).date()}] records=[{len(tiker_report_last_df[(tiker_report_last_df['day_close'] == stat_list['day_close'][index]) & (tiker_report_last_df['market'] == market)])}]")
+
+    statistic()  # просто считаем статистику новизны отчетной базы
+
+    with pd.ExcelWriter(io_streem["sql_make_to_excel"]) as writer:  # записываем отчетный поток!!!
+        tiker_report_last_df[tiker_report_last_df['market'] == 'SPB'].to_excel(writer, sheet_name='SPB')
+        tiker_report_last_df[tiker_report_last_df['market'] == 'RU'].to_excel(writer, sheet_name='RU')
+        tiker_report_last_df[tiker_report_last_df['market'] == 'USA'].to_excel(writer, sheet_name='USA')
+        df_teh.to_excel(writer, sheet_name='Teh_analis_all')
+        tiker_report_last_df[tiker_report_last_df['tiker'].isin([*dmitry_list_spb])].to_excel(writer,
+                                                                                              sheet_name='D_list')
+        tiker_report_last_df[tiker_report_last_df['tiker'].isin([*zina_list_spb])].to_excel(writer, sheet_name='Z_list')
+    print('save excel to IO')
+    # test_df = pd.read_excel(io_streem["sql_make_to_excel"], engine='openpyxl', sheet_name='D_list')
+    # print('read from IO', test_df.head(5))
+    # exit()
+    return io_streem["sql_make_to_excel"]
 
 
 def send_email(name_for_save, name_for_save_crop):
@@ -706,22 +728,18 @@ def send_email(name_for_save, name_for_save_crop):
     для отправки отбираются два файла - name_for_save_crop, name_for_save, склеиваются в один пакет 
     и отправляется по списку client_mail_vip
     """
-
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
     file_name = [name_for_save_crop, name_for_save]
     mail_status = ['not_vip', 'vip']
     client_my = []
-
     try:
         server.login(mail_login, mail_pass)
         msg = MIMEMultipart()
         msg["From"] = mail_login
         msg["Subject"] = "Новый отчет " + str(datetime.today().strftime("%Y-%m-%d") + " для моих подписчиков")
 
-
         msg.attach(MIMEText(message_status_tiker_report_for_email))
-
 
         for file, mail_client_key in zip(file_name, mail_status):
             filename = os.path.basename(file)
@@ -774,9 +792,10 @@ def main():
         prj_path = path_linux
         history_path = path_history_linux
     ''' end constant list '''
+
+
     save_log(prj_path, '------------ start normal ------------')
     # TEST MODUL
-
     # кстати выявлено, что в базе данных есть тикеры , есть они в my_st_list, но в итоговой базе они пропадают.
     # надо придумать способ проверять входные и выходные данные, и какой то делать отчет о целостности.
     # может сваять все в одну таблицу - имя, тикер, отрасль, валюта, рынок, последняя дата загрузки, начальная даты загрузки, номер строчки в итоговой таблице в каждой закладке.
@@ -787,7 +806,11 @@ def main():
     # pd_df_to_sql(big_df_table)
 
     # history_updater(prj_path, sql_login)  # запускаем загрузку и обновление sql базы делает --- отдельный скрипт
-    name_for_save = sql_base_make(prj_path, sql_login, col_list)  # делаем расчеты для заполнения таблицы
+    # name_for_save =
+    sql_base_make(prj_path, sql_login,
+                  col_list)  # делаем расчеты для заполнения таблицы и отправляем расчеты в sql_report
+    #
+    name_for_save = from_tiker_reportLast_to_excel() # из sql_report склеиваем excel
     name_for_save, name_for_save_crop = excel_format(prj_path, name_for_save, history_path)  # форматируем таблицу
 
     print(send_email(name_for_save, name_for_save_crop))  # отправляем по почте
@@ -840,3 +863,6 @@ if __name__ == "__main__":
 # Currency VARCHAR(3) NOT NULL,
 # market VARCHAR(3) NOT NULL
 # );
+
+
+'''Select * from tiker_report tr join (select tr.tiker, max(tr.day_close) as day_close_max from tiker_report tr group by tr.tiker) tiker_report_max on tiker_report_max.tiker = tr.tiker and tiker_report_max.day_close_max = tr.day_close'''
