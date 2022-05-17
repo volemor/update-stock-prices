@@ -1,6 +1,8 @@
 import os
 import pandas as pd
-
+'''
+проверка лог файлов на наличие попытки подключения по ssh
+'''
 
 def main():
     count_fail = 0
