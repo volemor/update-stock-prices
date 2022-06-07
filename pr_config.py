@@ -75,6 +75,11 @@ excel_sheet_name = { 'SPB', 'RU', 'USA', 'Teh_analis_all', 'D_list', 'Z_list'}
 base_status: -> df_last_update
         index | st_id  | date_max  | Currency | date_min | market
 """
+
+
+
+
+
 # CREATE TABLE tiker_report
 # (
 # market VARCHAR(3) NOT NULL,

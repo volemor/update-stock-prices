@@ -15,6 +15,8 @@ import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import NamedStyle
+import openpyxl
 from pandas import DataFrame
 from sqlalchemy import create_engine
 from tqdm import tqdm
@@ -67,15 +69,13 @@ TODO ::::
         !!сделать возможность добавления кучи списков тикеров - и чтоб ексель добавлял странички налету - при любом кол-ве списков
         !!! упростить шаблон екселя - все равно все страницы равны --- тока разница в таблице теханализа..
         !!! сделать при записи отчета в ексель из шаблона - подготовку пользовательских сборок  в неограниченном количестве - типа по ключевой фразе - ***_list - 
-        подгружать шаблон, заполнять его, записывать, подгружать повторно и так далее - цикл делать - может слорь этих списков сделать какой то вложенный???  
+        подгружать шаблон, заполнять его, записывать, подгружать повторно и так далее - цикл делать - может словарь этих списков сделать какой то вложенный???  
         1000200) надо придумать шапку головную - что когда запускать --- вот модуль insert_history_date_into_sql(): - когда запускаем ??   
                 может его в update_sql.py перенести или в split_check?? --
                  наверное последнеее логичнее - update_sql.py -- каждый день запускается в свое окно! а   split_check раз в неделю..
               
 '''
 
-
-# TODO: добавить модуль для считывания из базы данных mysql и в эксель -- from_sql_report_to_excel!!! и потом дальнейшее форматирование)))
 
 def bif_report_tables_to_sql(df, market):
     """записываем расчетную табличку в sql базу таблица -- tiker_report"""
@@ -314,12 +314,13 @@ def statistic_data_base(df_last_update, email_body_make=False):
     global prj_path
     ''' подсчет статистики актуальности базы данных, с охранением результата в лог'''
     message_for_email_body = ''
+    print('статистика базы данных тикеров hist_date: ')
     for market_s in df_last_update['market'].unique():
         listing_ll = pd.Series(
             {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
         listing_ll['date_max'].sort()
         for num_1 in range(len(listing_ll[2]) - 2, len(listing_ll[2])):
-            message_loc = f"date for [{market_s}]- [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] "
+            message_loc = f"данные для рынка [{market_s}] на дату [{str(pd.to_datetime(listing_ll['date_max'][num_1]).date())}] содержат [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] актуальных тикеров "
             print(message_loc)
             message_for_email_body += ''.join(message_loc)
             save_log(prj_path,
@@ -453,6 +454,7 @@ def sql_base_make(prj_path, sql_login,
     message_status_tiker_report_for_email += ''.join(statistic_data_base(df_last_update, email_body_make=True))
     message_status_tiker_report_for_email += message_status_tiker_report_for_email_end
     teh_an_stat_for_print()
+    print('сводка по требующимся к обновлению тикерам')
     history_date_stat()
 
     thread_link[sql_comm_key[3]].join()
@@ -460,6 +462,23 @@ def sql_base_make(prj_path, sql_login,
     df_spb = thre_sql_return[sql_comm_key[3]]
 
     print(f'SPB sql load OK [{df_spb.shape}]')
+
+
+    def my_new_tables(df_spb):
+        """новая таблица для рисков и доходностей"""
+        columns_teh_out = ['st_id', 'BnH', 'BnH_risk', 'MACD', 'MACD_risk', 'RSI', 'RSI_risk', 'SR', 'SR_risk']
+        df_teh_an_out = pd.DataFrame(columns=columns_teh_out)
+        # print(df_spb.columns)
+        for index in tqdm(df_spb['st_id'].unique()):
+            try:
+                df_teh_an_out = pd.concat([df_teh_an_out, teh_analis_from_out(df_spb[df_spb['st_id'] == index][['close', 'st_id']])])
+            except Exception as _ex:
+                save_log(prj_path, f'error [teh_out] {_ex}')
+                continue
+        df_teh_an_out.to_excel(f'teh_out-{datetime.today().date()}.xlsx')
+        return df_teh_an_out
+
+
 
     if datetime.today().weekday() == 5:
         thread_link[sql_comm_key[5]].start()
@@ -478,7 +497,7 @@ def sql_base_make(prj_path, sql_login,
     thread_link[sql_comm_key[6]].join()
     df_teh = thre_sql_return[sql_comm_key[6]]
     print('\n[', datetime.today(), ']', 'stage 1 (SPB).....[Calculating]')
-    for ind in tqdm(df_last_update['st_id']):  # считаем рынок СПБ
+    for ind in tqdm(df_last_update[df_last_update['market'] == "SPB"]['st_id']):  # считаем рынок СПБ
         if pd.DataFrame.any(branch_name.st_id == ind):
             branch_name_local = branch_name[branch_name.st_id == ind].iloc[0]['branch']
         else:
@@ -502,7 +521,7 @@ def sql_base_make(prj_path, sql_login,
             big_df = pd.concat([big_df, my_df])
 
     print('len big df SPB', len(big_df))
-    if len (big_df) != 0:
+    if len(big_df) != 0:
         bif_report_tables_to_sql(big_df.copy(), 'SPB')
 
     thread_link[sql_comm_key[4]].join()
@@ -510,7 +529,7 @@ def sql_base_make(prj_path, sql_login,
     df_ru.sort_values(by=['date'], inplace=True)
     save_log(prj_path, "RU base load--" + str(len(df_ru)) + "...[OK]")
     print('\n[', datetime.today(), ']', 'stage 2 (RU)......[Calculating]')
-    for ind in tqdm(df_last_update['st_id']):  # считаем рынок Московская биржа
+    for ind in tqdm(df_last_update[df_last_update['market'] == "RU"]['st_id']):  # считаем рынок Московская биржа
         if (branch_name.st_id == ind).any():
             branch_name_local = branch_name[branch_name.st_id == ind].iloc[0]['branch']
         else:
@@ -536,10 +555,6 @@ def sql_base_make(prj_path, sql_login,
     dmitry_df = big_df[dmitry_list_for_filter].copy()
     print('\n[', datetime.today(), ']', 'stage 4 (zina)..[Collecting]')
     zina_df = big_df[big_df['tiker'].isin([*zina_list_spb])].copy()
-    # TODO: надо теперь придумать подгрузку из sql последних данных - иначе в файл запишется тока то, что еще не записалось \
-    '''т.е. надо формировать файл из записей из базы данных - или приклеивать или заново запрос делать с последними данными
-    
-    '''
 
     if datetime.today().weekday() == 5:
 
@@ -549,7 +564,7 @@ def sql_base_make(prj_path, sql_login,
         df_from_us.sort_values(by=['date'], inplace=True)
         save_log(prj_path, "US base load--" + str(len(df_from_us)) + "...[OK]")
         print('\n[', datetime.today(), ']', 'stage 5 (US)..[Collecting]')
-        for tik_index in tqdm(df_last_update['st_id']):
+        for tik_index in tqdm(df_last_update[df_last_update['market'] == "US"]['st_id']):
             if pd.DataFrame.any(branch_name.st_id == tik_index):
                 branch_name_local = branch_name[branch_name.st_id == tik_index].iloc[0]['branch']
             else:
@@ -570,6 +585,7 @@ def sql_base_make(prj_path, sql_login,
                     save_log(prj_path, message)
                     continue
                 big_df_US = pd.concat([big_df_US, my_df])  # , list(col_list))
+
     else:
         print('\n[', datetime.today(), ']', 'today not for stage 5 -- (US), see later -(need 5 day of weekday)')
 
@@ -590,15 +606,76 @@ def sql_base_make(prj_path, sql_login,
     print('\n[', datetime.today(), ']', (datetime.today() - start_timer).seconds, '[sec]')
     save_log(prj_path, '-----[' + str(datetime.today()) + '] ' + str(
         timedelta(seconds=((datetime.today() - start_timer).seconds))))
-    if len(big_df_ru)!= 0:
+    if len(big_df_ru) != 0:
         bif_report_tables_to_sql(big_df_ru.copy(), 'RU')
-    if len (big_df_US)!=0:
+    if len(big_df_US) != 0:
         bif_report_tables_to_sql(big_df_US.copy(), 'USA')
 
     save_log(prj_path, 'SQL save complite')
+    """пробуем сделать расчеты по тикерам СПБ по системе теханализа-out"""
+    if datetime.today().weekday() == 5:
+        print(my_new_tables(df_spb))
+    """ куда-то надо приткнуть!!!!!!"""
+
+
+    # !!!!!
 
     # exit()
     # return io_streem["sql_make"]
+
+
+def teh_analis_from_out(df_h):
+    """новый модуль из инета - еще не придумано поключить и надо ли.... """
+    '''input parameters'''
+    columns_teh_out_k = ['st_id', 'BnH', 'BnH_risk', 'MACD', 'MACD_risk', 'RSI', 'RSI_risk', 'SR', 'SR_risk']
+    st_id = df_h.iloc[0]["st_id"]
+    short_ma = 7
+    long_ma = 16
+    rsi_period = 14
+    rsi_overload = 30
+    rsi_overbougth = 70
+    sr_sell = 0.7
+    sr_buy = 0.3
+    df_h['MA' + str(short_ma)] = df_h['close'].rolling(short_ma).mean()
+    df_h['MA' + str(long_ma)] = df_h['close'].rolling(long_ma).mean()
+    df_h['return'] = df_h['close'].pct_change()
+    df_h['Up'] = np.maximum(df_h['close'].diff(), 0)
+    df_h['Down'] = np.maximum(-df_h['close'].diff(), 0)
+    df_h['RS'] = df_h['Up'].rolling(rsi_period).mean() / df_h['Down'].rolling(rsi_period).mean()
+    df_h['RSI'] = 100 - 100 / (1 + df_h['RS'])
+    df_h['S&R'] = (df_h['close'] / (10 ** np.floor(np.log10(df_h['close'])))) % 1
+    start = max(long_ma, rsi_period)
+    df_h['MACD_signal'] = 2 * (df_h['MA' + str(short_ma)] > df_h['MA' + str(long_ma)]) - 1
+    df_h['RSI_signal'] = 1 * (df_h['RSI'] < rsi_overload) - 1 * (df_h['RSI'] > rsi_overbougth)
+    df_h['S&R_signal'] = 1 * (df_h['S&R'] < sr_buy) - 1 * (df_h['S&R'] > sr_sell)
+    Bnh_return = np.array(df_h['return'][start + 1:])
+    MACD_return = np.array(df_h['return'][start + 1:]) * np.array(df_h['MACD_signal'][start:-1])
+    RSI_return = np.array(df_h['return'][start + 1:]) * np.array(df_h['RSI_signal'][start:-1])
+    SR_return = np.array(df_h['return'][start + 1:]) * np.array(df_h['S&R_signal'][start:-1])
+    BnH = np.prod(1 + Bnh_return) ** (252 / len(Bnh_return))
+    MACD = np.prod(1 + MACD_return) ** (252 / len(MACD_return))
+    RSI = np.prod(1 + RSI_return) ** (252 / len(RSI_return))
+    SR = np.prod(1 + SR_return) ** (252 / len(SR_return))
+    BnH_risk = np.std(Bnh_return) * (252) ** 0.5
+    MACD_risk = np.std(MACD_return) * (252) ** 0.5
+    RSI_risk = np.std(RSI_return) * (252) ** 0.5
+    SR_risk = np.std(SR_return) * (252) ** 0.5
+
+    # print(st_id)
+    # print('доходность и риск стратегии buy and hold:' + str(round(BnH * 100, 2)) + '% и' +
+    #       str(round(BnH_risk * 100, 2)) + '%')
+    # print('доходность и риск стратегии скользящих средних:' + str(round(MACD * 100, 2)) + '% и' +
+    #       str(round(MACD_risk * 100, 2)) + '%')
+    # print('доходность и риск стратегии RSI:' + str(round(RSI * 100, 2)) + '% и' +
+    #       str(round(RSI_risk * 100, 2)) + '%')
+    # print('доходность и риск стратегии поддержки и сопротивления:' + str(round(SR * 100, 2)) + '% и' +
+    #       str(round(SR_risk * 100, 2)) + '%')
+    res = [st_id, round(BnH * 100, 2), round(BnH_risk * 100, 2), round(MACD * 100, 2), round(MACD_risk * 100, 2),
+           round(
+               RSI * 100, 2), round(RSI_risk * 100, 2), round(SR * 100, 2), round(SR_risk * 100, 2)]
+    result = pd.DataFrame([res], columns=columns_teh_out_k)
+    # print(result)
+    return result
 
 
 def excel_format(prj_path, name_for_save, history_path):  # форматирование отчетного файла после записи
@@ -611,13 +688,14 @@ def excel_format(prj_path, name_for_save, history_path):  # форматиров
 
     wb_help = load_workbook(filename=str(prj_path) + xlsx_sample)  # шаблон форматирования
     shit_n = wb_help.sheetnames
-    ws = wb_help.active
+    # ws = wb_help.active
+    wb_help.iso_dates = True
     print('[', datetime.today(), ']', 'EXCEL format [START]')
     print(shit_n)
     d_list_list = []
+    date_style = NamedStyle(name='date_style', number_format='dd.mm.yyyy')
     for shit_m in tqdm(shit_n):
         ws = wb_help[shit_m]
-
         df_l = pd.read_excel(name_for_save, engine='openpyxl', sheet_name=shit_m)
         print(ws)
         for r in dataframe_to_rows(df_l, index=False, header=False):
@@ -629,13 +707,25 @@ def excel_format(prj_path, name_for_save, history_path):  # форматиров
                 d_list_list.append(index_x)
         if shit_m == 'SPB':
             df_l_spb = df_l.copy()
+        '''
+        задаем формат даты для нужных столбцов
+        '''
+        if shit_m != 'Teh_analis_all':
+            for row in ws[7:ws.max_row]:
+                cell = row[57]
+                cell.style = date_style
+                cell = row[56]
+                cell.style = date_style
+        else:
+            for row in ws[7:ws.max_row]:
+                cell = row[2]
+                cell.style = date_style
     if len(d_list_list) != 0:
         my_filter = df_l_spb['tiker'].isin([*d_list_list])
         ws = wb_help['SPB']
         for index_x in df_l_spb[my_filter].index:
             ws[f'C{index_x + 7}'].fill = redFill
         print(f"SPB tiker from d_list -- fill [{len(d_list_list)}]")
-
         # ws.freeze_panes = 'E7'
     for s_name in shit_n:
         sheet = wb_help[s_name]
@@ -659,7 +749,6 @@ def excel_format(prj_path, name_for_save, history_path):  # форматиров
 
     print('[', datetime.today(), ']', 'EXCEL format.. [Complite]')
     print('[', datetime.today(), ']', 'EXCEL save to YD.. [Complite]')
-
     return name_for_save_file, name_for_save_crop
     # return io_streem['excel_format_d'], io_streem['excel_format_all']   # name_for_save, name_for_save_crop
 
@@ -701,7 +790,7 @@ def from_tiker_reportLast_to_excel():
             # stat_list.sort()
             stat_list['day_close'].sort()
             stat_market_list[market] = stat_list['day_close']
-            for index in range(len(stat_list['day_close'])-3, len(stat_list['day_close'])):
+            for index in range(len(stat_list['day_close']) - 3, len(stat_list['day_close'])):
                 print(
                     f"[{market}]to date[{pd.to_datetime(stat_list['day_close'][index]).date()}] records=[{len(tiker_report_last_df[(tiker_report_last_df['day_close'] == stat_list['day_close'][index]) & (tiker_report_last_df['market'] == market)])}]")
 
@@ -715,7 +804,7 @@ def from_tiker_reportLast_to_excel():
         tiker_report_last_df[tiker_report_last_df['tiker'].isin([*dmitry_list_spb])].to_excel(writer,
                                                                                               sheet_name='D_list')
         tiker_report_last_df[tiker_report_last_df['tiker'].isin([*zina_list_spb])].to_excel(writer, sheet_name='Z_list')
-    print('save excel to IO')
+    print('save excel to IO\n')
     # test_df = pd.read_excel(io_streem["sql_make_to_excel"], engine='openpyxl', sheet_name='D_list')
     # print('read from IO', test_df.head(5))
     # exit()
@@ -793,7 +882,6 @@ def main():
         history_path = path_history_linux
     ''' end constant list '''
 
-
     save_log(prj_path, '------------ start normal ------------')
     # TEST MODUL
     # кстати выявлено, что в базе данных есть тикеры , есть они в my_st_list, но в итоговой базе они пропадают.
@@ -810,7 +898,7 @@ def main():
     sql_base_make(prj_path, sql_login,
                   col_list)  # делаем расчеты для заполнения таблицы и отправляем расчеты в sql_report
     #
-    name_for_save = from_tiker_reportLast_to_excel() # из sql_report склеиваем excel
+    name_for_save = from_tiker_reportLast_to_excel()  # из sql_report склеиваем excel
     name_for_save, name_for_save_crop = excel_format(prj_path, name_for_save, history_path)  # форматируем таблицу
 
     print(send_email(name_for_save, name_for_save_crop))  # отправляем по почте

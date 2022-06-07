@@ -7,20 +7,19 @@ import pandas as pd
 import investpy
 import time
 from pandas_datareader import data as pdr
-from update_sql import pd_df_to_sql
+from update_sql import pd_df_to_sql, save_exeption_log
+from pr_config import *
 
 """ запускается проектамма в 18-10 по понедельникам - должна работу закончить до 23 часов"""
 
 if os.name == 'nt':  # проверяем из под чего загрузка.
-    linux_path = ''
-    history_path = 'D:\\YandexDisk\\корень\\отчеты\\'
+    linux_path = path_win
     print("start from WINDOWS")
 else:
-    linux_path = '/mnt/1T/opt/gig/My_Python/st_US/'
-    history_path = '/mnt/1T/opt/gig/My_Python/st_US/SAVE'
+    linux_path = path_linux
     print("start from LINUX")
 
-db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
+db_connection_str = sql_login
 db_connection = create_engine(db_connection_str)
 mysleep = 0.0001
 
@@ -79,48 +78,54 @@ def check_for_time():
 
 def sql_base_clear_for_split_list(list_for_replase_data):
     global db_connection
-    if len(list_for_replase_data) > 0:
-        base_status_df = pd.read_sql('Select * from base_status ;', con=db_connection)
-        list_for_replase_df = base_status_df.loc[base_status_df['st_id'].isin(list_for_replase_data)][
-            ['st_id', 'date_min']]
-        list_for_replase_df.reset_index(inplace=True)
-        save_log(f"now try to delete [{list_for_replase_data}]", linux_path)
-        print(list_for_replase_df[['st_id', 'date_min']])
-        remove_list, list_sero_set = [], []
-        for index in range(len(list_for_replase_df)):  ### Delete sql list split data
-            try:
-                print((db_connection.execute(
-                    f"delete from hist_data where st_id ='{list_for_replase_df.iat[index, 1]}' and date > '{(list_for_replase_df.iat[index, 2]).strftime('%Y-%m-%d')}' ")).fetchall())
-                remove_list.append(list_for_replase_df.iat[index, 1])
-            except:
-                save_log(f"delete error [{list_for_replase_df.iat[index, 1]}]", linux_path)
-                print(list_for_replase_df.iat[index, 1], 'delete error')
-                continue
-        save_log(f"remove DATA from SQL base [{remove_list}]", linux_path)
-        for index in range(len(list_for_replase_df)):  ### set zero to first row sql data
-            try:
-                print((db_connection.execute(
-## добавили дату конкретную.. посмотрим как будет работать
-                    f"update hist_data set date = '2019-08-01', Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
-                list_sero_set.append(list_for_replase_df.iat[index, 1])
-            except:
-                save_log(f"set ZERO to first row error[{list_for_replase_df.iat[index, 1]}]", linux_path)
-                print(list_for_replase_df.iat[index, 1], 'set ZERO to first row error')
-                continue
-        save_log(f"SET ZERO DATA to first row of SQL base [{list_sero_set}]", linux_path)
-    else:
-        save_log(f"SPLIT list is empty", linux_path)
+    save_log(f"now try to delete [{list_for_replase_data}]", linux_path)
+    try:
+        if len(list_for_replase_data) > 0:
+            base_status_df = pd.read_sql('Select * from base_status ;', con=db_connection)
+            list_for_replase_df = base_status_df.loc[base_status_df['st_id'].isin(list_for_replase_data)][
+                ['st_id', 'date_min']]
+            list_for_replase_df.reset_index(inplace=True)
+            save_log(f"now try to delete [{list_for_replase_data}]", linux_path)
+            print(list_for_replase_df[['st_id', 'date_min']])
+            remove_list, list_sero_set = [], []
+            for index in range(len(list_for_replase_df)):  ### Delete sql list split data
+                try:
+                    print((db_connection.execute(
+                        f"delete from hist_data where st_id ='{list_for_replase_df.iat[index, 1]}' and date > '{(list_for_replase_df.iat[index, 2]).strftime('%Y-%m-%d')}' ")).fetchall())
+                    remove_list.append(list_for_replase_df.iat[index, 1])
+                except Exception as _ex:
+                    save_exeption_log(linux_path, 'split_check: del_row', _ex)
+                    save_log(f"delete error [{list_for_replase_df.iat[index, 1]}]", linux_path)
+                    print(list_for_replase_df.iat[index, 1], 'delete error')
+                    continue
+            save_log(f"remove DATA from SQL base [{remove_list}]", linux_path)
+            for index in range(len(list_for_replase_df)):  ### set zero to first row sql data
+                try:
+                    print((db_connection.execute(
+                        ## добавили дату конкретную.. посмотрим как будет работать
+                        f"update hist_data set date = '2019-08-01', Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
+                    list_sero_set.append(list_for_replase_df.iat[index, 1])
+                except Exception as _ex:
+                    save_exeption_log(linux_path, 'split_check: set_zero', _ex)
+                    save_log(f"set ZERO to first row error[{list_for_replase_df.iat[index, 1]}]", linux_path)
+                    print(list_for_replase_df.iat[index, 1], 'set ZERO to first row error')
+                    continue
+            save_log(f"SET ZERO DATA to first row of SQL base [{list_sero_set}]", linux_path)
+        else:
+            save_log(f"SPLIT list is empty{list_for_replase_data}", linux_path)
+    except Exception as _ex:
+        save_log(f"some error[{_ex}]", linux_path)
+
 
 # insert into hist_data  (index,Date , Open, High,  Low, Close, Volume, st_id , Currency, market) values (0, '2019-08-01', 0,0,0,0,0, 'REDFY', 'USD', 'US';
 # update hist_data set date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'CRMBQ'
 # set Date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'REDFY';
 
-# TODO: наверное надо включать в лог запись - что за модуль сделал хапись - а то update or split check??
+# TODO: наверное надо включать в лог запись - что за модуль сделал запись - а то update or split check??
 def save_log(message, linux_path=''):  # сохраняет в лог файл сообщение..
-    f = open(linux_path + 'update.log', mode='a')
-    lines = '[' + str(datetime.today()) + '] ' + str(message)
-    f.writelines(lines + '\n')
-    f.close()
+    with open(linux_path + 'update.log', mode='a') as f
+        lines = '[' + str(datetime.today()) + '] ' + str(message)
+        f.writelines(lines + '\n')
 
 
 def split_check():
@@ -156,7 +161,8 @@ def split_check():
                                                                       from_date=date_for_investpy_from,
                                                                       to_date=date_for_investpy_to)
                     time.sleep(1)
-                except:
+                except Exception as _ex:
+                    save_exeption_log(linux_path, 'split_check: find_slit: investpy', _ex)
                     print(f"US invest_py error [{my_sql_df_control_date.loc[index]['st_id']}]")
                     continue
                 if (df_invest_py[df_invest_py.index == pd.to_datetime(date_control)].iat[0, 0] /
@@ -175,7 +181,8 @@ def split_check():
                                            end=date_for_yahho_to))[
                         ['Open', 'High', 'Low', 'Close', 'Volume']]).round(2)
                     time.sleep(1)
-                except:
+                except Exception as _ex:
+                    save_exeption_log(linux_path, 'split_check: find_slit: Yahho', _ex)
                     print("US yahho_ error")
                     continue
                 if (df_yahho[df_yahho.index == pd.to_datetime(date_control)].at[pd.to_datetime(date_control), 'Open'] /
@@ -204,11 +211,11 @@ def split_check():
 
     save_log(f"split list - {split_list}", linux_path)
     save_log(f"Complite SPLIT control for date [{date_control}]", linux_path)
-    if len(split_list) > 0:
-        f = open(linux_path + 'split.log', mode='x')
-        lines = str(True)
-        f.writelines(lines + '\n')
-        f.close()
+    # if len(split_list) > 0:
+    #     f = open(linux_path + 'split.log', mode='x')
+    #     lines = str(True)
+    #     f.writelines(lines + '\n')
+    #     f.close()
     return split_list
 
 
@@ -279,12 +286,14 @@ def insert_history_date_into_sql():
         linux_path=linux_path)
 
 
+save_log(linux_path, '---------------split check start--------------')
 split_list_return = split_check()
+# split_list_return = ['ADS', 'T']
 
 sql_base_clear_for_split_list(split_list_return)
 
 """  требуется ручное тестирование"""
 #### insert_history_date_into_sql()
 
-
+save_log(linux_path, '---------------split check complite------------')
 history_date_base_update()  # по итогам проверки обновляем статус базы
