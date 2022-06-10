@@ -19,8 +19,7 @@ else:
     linux_path = path_linux
     print("start from LINUX")
 
-db_connection_str = sql_login
-db_connection = create_engine(db_connection_str)
+db_connection = create_engine(sql_login)
 mysleep = 0.0001
 
 '''
