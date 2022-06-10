@@ -229,7 +229,8 @@ def insert_history_date_into_sql():
     """
     time_count = []
     global mysleep
-
+    save_log(message=f'--try add from investpy new stock to history_date--',
+             linux_path=linux_path)
     def sleep_timer_regulator():
         '''пробуем регулировать паузу между обращениями за данными налету'''
         global mysleep
@@ -243,28 +244,41 @@ def insert_history_date_into_sql():
     market_name = ['United States', 'United States', 'russia']
     stocks_us_investpy = investpy.get_stocks(country=market_name[0])['symbol']
     df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
-    # df_last_update = pd.read_excel('base_status.xlsx')['st_id']
-    save_log(message='insert new tiker from investpy.get_stocks to SQL history_date', linux_path=linux_path)
-    df = df_last_update.to_numpy().tolist()
-    my_2_list = stocks_us_investpy.to_numpy().tolist()
-    my_only_US_df_list = []
-    for index_us in tqdm(my_2_list):
-        # print(index_us)
-        if index_us in df:
-            # print(f'is in -={index_us}')
-            continue
-        else:
-            my_only_US_df_list.append(index_us)
-            # print(f"{index_us} - add" )
+    
+    us_df_last = df_last_update[df_last_update['market'] == 'US']['st_id']
+    spb_df_last = df_last_update[df_last_update['market'] == 'SPB']['st_id']
+    set_spb, set_us, set_real_us = set(), set(), set()
+    
+    set_spb.update(spb_df_last)
+    set_us.update(us_df_last)
+    set_real_us.update(stocks_us_investpy)
+    
+    list_stock_from_real_us_to_us =[*set_real_us.difference(set_us.union(set_spb))] 
+    print(f'is in real US and need to US:', list_stock_from_real_us_to_us)
+    
+    
+    
+    # save_log(message='insert new tiker from investpy.get_stocks to SQL history_date', linux_path=linux_path)
+    # df = df_last_update.to_numpy().tolist()
+    # my_2_list = stocks_us_investpy.to_numpy().tolist()
+    # my_only_US_df_list = []
+    # for index_us in tqdm(my_2_list):
+    #     # print(index_us)
+    #     if index_us in df:
+    #         # print(f'is in -={index_us}')
+    #         continue
+    #     else:
+    #         my_only_US_df_list.append(index_us)
+    #         # print(f"{index_us} - add" )
 
-    print(f"my list len = {len(my_only_US_df_list)}")
-    print(f'all US list len = {len(my_2_list)}')
-    my_only_US_df_list.sort()
-    save_log(message=f'find {len(my_only_US_df_list)}, try add {my_only_US_df_list}', linux_path=linux_path)
-    print(my_only_US_df_list)
-    from_date_m, to_date_m = '1/01/2019', datetime.today().strftime("%d/%m/%Y")
+    # print(f"my list len = {len(my_only_US_df_list)}")
+    # print(f'all US list len = {len(my_2_list)}')
+    # my_only_US_df_list.sort()
+    
+    save_log(message=f'find {len(list_stock_from_real_us_to_us)}, try add {list_stock_from_real_us_to_us}', linux_path=linux_path)
+    from_date_m, to_date_m = '1/08/2018', datetime.today().strftime("%d/%m/%Y")
     successfully_list = []
-    for only_us_index in tqdm(my_only_US_df_list):
+    for only_us_index in tqdm(list_stock_from_real_us_to_us):
         check_for_time()
         try:
             time.sleep(mysleep)
@@ -282,7 +296,7 @@ def insert_history_date_into_sql():
         pd_df_to_sql(df_update)
         sleep_timer_regulator()
     save_log(
-        message=f'LEn of successfully list is [{len(successfully_list)}], apply [{round(100 * len(successfully_list) / len(my_only_US_df_list), 0)}]%,  added list-- {successfully_list}',
+        message=f'LEn of successfully list is [{len(successfully_list)}], apply [{round(100 * len(successfully_list) / len(list_stock_from_real_us_to_us), 0)}]%,  added list-- {successfully_list}',
         linux_path=linux_path)
 
 
@@ -293,7 +307,7 @@ split_list_return = split_check()
 sql_base_clear_for_split_list(split_list_return)
 
 """  требуется ручное тестирование"""
-#### insert_history_date_into_sql()
+insert_history_date_into_sql()
 
 save_log(linux_path, '---------------split check complite------------')
 history_date_base_update()  # по итогам проверки обновляем статус базы
