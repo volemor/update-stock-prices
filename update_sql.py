@@ -92,7 +92,8 @@ def save_log(linux_path, message):
 
 def save_exeption_log(linux_path, modul, message):
     '''записываем в файл логи ошибок с указанием модуля из которого был вызов
-    при этом делаем некую фильтрацию'''
+    при этом делаем некую фильтрацию
+    :type modul: str'''
     global stock_not_found_teh_an, no_data_fetched_hist_yahho
     if 'not found' in message and modul == 'teh_an':
         stock_not_found_teh_an.append(message.split()[2].upper())
@@ -504,7 +505,7 @@ def history_updater(linux_path, db_connection_str):
                 # print(teh_analis_local)
         else:
             deltadays = (cur_date.date() - df_last_teh[df_last_teh.st_id == indexx].iloc[0]['date_max']).days
-            if deltadays <= 700 and deltadays > 15 and datetime.today().time().hour < 14:
+            if deltadays <= 700 and deltadays > 8 and datetime.today().time().hour < 14:
                 if df_last_update[df_last_update.st_id == indexx].iloc[0]["Currency"] == 'USD':
                     try:
                         teh_analis_local = teh_an(indexx, country_teh=market_name[0])
@@ -545,7 +546,7 @@ def history_date_base_update(db_connection_str):
     db_connection = create_engine(db_connection_str)
     df_last_update = pd.read_sql(
         'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
-        con=db_connection)  # загрузили список тикеров из базы с последней датой
+        con=db_connection)
     df_last_update.to_sql(name='base_status', con=db_connection, if_exists='replace')
     print('history_date_base_update complite')
 
