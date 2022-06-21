@@ -122,7 +122,7 @@ def sql_base_clear_for_split_list(list_for_replase_data):
 
 # TODO: наверное надо включать в лог запись - что за модуль сделал запись - а то update or split check??
 def save_log(message, linux_path=''):  # сохраняет в лог файл сообщение..
-    with open(linux_path + 'update.log', mode='a') as f
+    with open(linux_path + 'update.log', mode='a') as f:
         lines = '[' + str(datetime.today()) + '] ' + str(message)
         f.writelines(lines + '\n')
 
@@ -161,7 +161,7 @@ def split_check():
                                                                       to_date=date_for_investpy_to)
                     time.sleep(1)
                 except Exception as _ex:
-                    save_exeption_log(linux_path, 'split_check: find_slit: investpy', _ex)
+                    save_exeption_log(linux_path=linux_path, modul='split_check: find_slit: investpy', message=_ex)
                     print(f"US invest_py error [{my_sql_df_control_date.loc[index]['st_id']}]")
                     continue
                 if (df_invest_py[df_invest_py.index == pd.to_datetime(date_control)].iat[0, 0] /
@@ -181,7 +181,7 @@ def split_check():
                         ['Open', 'High', 'Low', 'Close', 'Volume']]).round(2)
                     time.sleep(1)
                 except Exception as _ex:
-                    save_exeption_log(linux_path, 'split_check: find_slit: Yahho', _ex)
+                    save_exeption_log(linux_path=linux_path, modul='split_check: find_slit: Yahho', message=_ex)
                     print("US yahho_ error")
                     continue
                 if (df_yahho[df_yahho.index == pd.to_datetime(date_control)].at[pd.to_datetime(date_control), 'Open'] /
@@ -255,8 +255,7 @@ def insert_history_date_into_sql():
     list_stock_from_real_us_to_us =[*set_real_us.difference(set_us.union(set_spb))] 
     print(f'is in real US and need to US:', list_stock_from_real_us_to_us)
     
-    
-    
+
     # save_log(message='insert new tiker from investpy.get_stocks to SQL history_date', linux_path=linux_path)
     # df = df_last_update.to_numpy().tolist()
     # my_2_list = stocks_us_investpy.to_numpy().tolist()
@@ -288,8 +287,9 @@ def insert_history_date_into_sql():
             time_count.append(time.time())
             df_update[['st_id', 'Currency', 'market']] = only_us_index, "USD", 'US'
             successfully_list.append(only_us_index)
-        except:
+        except Exception as _ex:
             print(f'Error [{only_us_index}] loading')
+            save_exeption_log(linux_path=linux_path, modul='insert US: to SQL: investpy', message=_ex)
             continue
         # TODO: обязательно допилить перенос этой функции с переменными
         pd_df_to_sql(df_update)
@@ -299,7 +299,7 @@ def insert_history_date_into_sql():
         linux_path=linux_path)
 
 
-save_log(linux_path, '---------------split check start--------------')
+save_log('------[]--------split check start---------[]-----', linux_path= linux_path)
 split_list_return = split_check()
 # split_list_return = ['ADS', 'T']
 
@@ -308,5 +308,5 @@ sql_base_clear_for_split_list(split_list_return)
 """  требуется ручное тестирование"""
 insert_history_date_into_sql()
 
-save_log(linux_path, '---------------split check complite------------')
+save_log( '-------][--------split check complite---------][---', linux_path=linux_path)
 history_date_base_update()  # по итогам проверки обновляем статус базы

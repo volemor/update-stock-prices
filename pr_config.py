@@ -12,7 +12,7 @@ my_start_date = '2020-02-01'
 max_old_days = 25
 # глобальные переменные для отчетов
 message_status_tiker_report_for_email = 'выгрузка содержит актуальные отчеты на следующие даты торгов: \n'
-message_status_tiker_report_for_email_end = '\n Пожалуйста не отвечайте на это сообщение, оно рассылается автоматически! \n'
+message_status_tiker_report_for_email_end = '\n \n Пожалуйста не отвечайте на это сообщение, оно рассылается автоматически! \n'
 io_streem = {}
 
 
