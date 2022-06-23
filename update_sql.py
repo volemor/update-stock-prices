@@ -90,33 +90,38 @@ def save_log(linux_path, message):
     f.close()
 
 
-def save_exeption_log(linux_path, modul, message):
+def save_exeption_log(linux_path, modul, message: str):
     '''записываем в файл логи ошибок с указанием модуля из которого был вызов
     при этом делаем некую фильтрацию
+    :type linux_path: str
     :type modul: str'''
+
     global stock_not_found_teh_an, no_data_fetched_hist_yahho
-    if 'not found' in message and modul == 'teh_an':
-        stock_not_found_teh_an.append(message.split()[2].upper())
-        return
-    if 'No data fetched' in message:
-        return no_data_fetched_hist_yahho.append(message.split()[5])
-    if "'Date'" in message:
-        return
-    if 'signal' in message:
-        return print('signal')
-    # TODO: не фильтруется и все же пишется в лог No data fetched
-    # TODO: надо бы придумать такой фокус, кок сравнение с предудущей записью - если одно и тоже, то просто считаем и
-    # TODO: записываем число повторений, если запись поменялась.
+    try:
+        if len(message) != 0:
+            if 'not found' in message and modul == 'teh_an':
+                stock_not_found_teh_an.append(message.split()[2].upper())
+                return
+            if 'No data fetched' in message:
+                return no_data_fetched_hist_yahho.append(message.split()[5])
+            if "'Date'" in message:
+                return
+            if 'signal' in message:
+                return print('signal')
+            # TODO: не фильтруется и все же пишется в лог No data fetched
+            # TODO: надо бы придумать такой фокус, кок сравнение с предудущей записью - если одно и тоже, то просто считаем и
+            # TODO: записываем число повторений, если запись поменялась.
 
-    if message != '0':
-        f = open(linux_path + 'update_extention.log', mode='a')
-        lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
-        f.writelines(lines + '\n')
-        f.close()
-    else:
-        print('exit pass')
+            if message != '0':
+                f = open(linux_path + 'update_extention.log', mode='a')
+                lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
+                f.writelines(lines + '\n')
+                f.close()
+            else:
+                print('exit pass')
+                pass
+    except:
         pass
-
 
 def stock_name_table(linux_path):
     """загрузка тикеров из инета и файла с СПБ в эксель файл
@@ -648,8 +653,6 @@ def main():
     start_control()
     history_updater(linux_path, db_connection_str)  # загрузка и обновление sql базы
     save_log(linux_path, '------------update complited --------------')
-
-
 
     exit()
 
