@@ -1,7 +1,7 @@
 """ переменные для работы программы, а приватоное в отдельном файле """
 sql_login = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
-path_linux = '/mnt/1T/opt/gig/My_Python/st_US/'
-path_history_linux = '/mnt/1T/opt/gig/My_Python/st_US/SAVE/'
+path_linux = '/mnt/1T/opt/gig/My_Python/stock_update/'
+path_history_linux = '/mnt/1T/opt/gig/My_Python/stock_update/SAVE/'
 path_win = ''
 path_history_win = 'D:\\YandexDisk\\корень\\отчеты\\'
 prj_path = ''
