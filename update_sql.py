@@ -621,6 +621,7 @@ def start_control():
 
     if datetime.today().time().hour > 16 or datetime.today().time().hour < 1:
         save_log(linux_path, '!!!!! TRY run in BLOKED time!!!!!! ')
+        print('!!!!! TRY run in BLOKED time!!!!!! ')
         exit()
 
 
