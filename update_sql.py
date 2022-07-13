@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 import os
 from pandas_datareader import data as pdr
 import threading
+from .pr_config import *
 
 # TODO: вообще надо бы сделать типа rest api --- программа засылает запрос, который перехватывает собственный модуль
 ''' 
@@ -122,6 +123,7 @@ def save_exeption_log(linux_path, modul, message: str):
                 pass
     except:
         pass
+
 
 def stock_name_table(linux_path):
     """загрузка тикеров из инета и файла с СПБ в эксель файл
@@ -264,7 +266,7 @@ def history_data(linux_path):  # сохраняем все  -- вроде раб
     '''
 
 
-def history_updater(linux_path, db_connection_str):
+def history_updater(linux_path: str, sql_login: str):
     """основной модуль обновления исторических данных
     hist_data: date, high, low, open, close, volume
     и данных теханализа путем загрузки данных c сервисов Investpy и Yahho
@@ -300,7 +302,7 @@ def history_updater(linux_path, db_connection_str):
     print('сегодня...', cur_date.strftime("%Y-%m-%d"))
     save_log(linux_path, '---------------start update--------------')
     market_name = ['United States', 'United States', 'russia']
-    db_connection = create_engine(db_connection_str)  # connect to database
+    db_connection = create_engine(sql_login)  # connect to database
 
     df_last_update = pd.read_sql('Select st_id, max(date) as date_max, Currency, market from hist_data group by st_id',
                                  con=db_connection)  # загрузили список тикеров из базы с последней датой
@@ -464,14 +466,14 @@ def history_updater(linux_path, db_connection_str):
     # save_log(linux_path,
     #          f'in YahhoDReader no data fetched [{len(no_data_fetched_hist_yahho)}] next stocks [{no_data_fetched_hist_yahho}] ')
 
-    # history_date_base_update(db_connection_str)
+    # history_date_base_update(sql_login)
     ''' пишем в лог результат обновления hist_data '''
 
     def update_log_statistic():  #
         # save_log(linux_path, 'Tread start_____')
         # запускаем обновление актуальности данных в history_data
-        history_date_base_update(db_connection_str)
-        df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection_str)
+        history_date_base_update(sql_login)
+        df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
         statistic_data_base(df_last_update)
         # save_log(linux_path, 'Tread complite_____')
 
@@ -545,10 +547,10 @@ def history_updater(linux_path, db_connection_str):
     return df_last_update
 
 
-def history_date_base_update(db_connection_str):
+def history_date_base_update(sql_login: str):
     """ считаваем максимальные значения дат для каждого тикера из базы данных ,и потом записываем в отдельную таблицу для быстрого доступа
     необходимо для правильного обращения к данным при расчетах"""
-    db_connection = create_engine(db_connection_str)
+    db_connection = create_engine(sql_login)
     df_last_update = pd.read_sql(
         'Select st_id, max(date) as date_max, Currency, min(date) as date_min , market from hist_data group by st_id',
         con=db_connection)
@@ -580,7 +582,7 @@ def first_read_sort(linux_path):
 
 def teh_an_to_sql(teh_an_df):
     """записываем значения теханализа в sql базу """
-    engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
+    engine = create_engine(sql_login)
     try:
         teh_an_df.to_sql(name='teh_an', con=engine, if_exists='append')  # append , replace
         print(f"teh_an save_to MYSQL [{teh_an_df.loc[0]['st_id']}]...... OK")
@@ -591,16 +593,16 @@ def teh_an_to_sql(teh_an_df):
 
 def pd_df_to_sql(df):
     """записываем исторические значения в sql базу """
-    engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
+    engine = create_engine(sql_login)
     try:
         df.to_sql(name='hist_data', con=engine, if_exists='append')  # append , replace
     except Exception as _ex:
         save_exeption_log(linux_path, modul='hist_sql', message=str(_ex))
-        print('SQL save errorrr \n ', df.shape, df, '\n')
+        print('SQL save error: \n ', df.shape, df, '\n')
     print(f"save_to MYSQL [{df.loc[0][['st_id', 'market']]}]...... OK")
 
 
-def statistic_data_base(df_last_update):
+def statistic_data_base(df_last_update: pd.DataFrame):
     """ модуль для подсчета статистики по базе данных - считаем 2 поздние дату и сколько значений в ними, и записываем в лог"""
     global linux_path
     listing_ll = pd.Series({c: df_last_update[c].unique() for c in df_last_update})
@@ -626,7 +628,6 @@ def start_control():
 
 
 linux_path = ''
-db_connection_str = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
 delta_data_koeff = 20
 mysleep, max_wait_days = 0.001, 45
 stock_not_found_teh_an, no_data_fetched_hist_yahho = [], []
@@ -638,7 +639,7 @@ def main():
     print('START')
     # My constant list
     col_list = my_start()
-    global db_connection_str  # = 'mysql+pymysql://python:python@192.168.0.118/hist_data'
+    global sql_login  # =  sql_login
     linux_path = '/opt/1/My_Python/st_US/'
     linux_path = ''
     if os.name == 'nt':  # проверяем из под чего загрузка.
@@ -652,14 +653,14 @@ def main():
         print("start from LINUX")
 
     start_control()
-    history_updater(linux_path, db_connection_str)  # загрузка и обновление sql базы
+    history_updater(linux_path, sql_login)  # загрузка и обновление sql базы
     save_log(linux_path, '------------update complited --------------')
 
     exit()
 
     print("UPDATE complite.. start remove dublikate")
-    engine = create_engine('mysql+pymysql://python:python@192.168.0.118/hist_data')
-    db_connection = create_engine(db_connection_str)  # connect to database
+
+    db_connection = create_engine(sql_login)  # connect to database
     engine.execute("ALTER IGNORE TABLE hist_data ADD UNIQUE ( Date, st_id(6))").fetchall()  # удаляем дубликаты в mysql
     print("MYSQL dublikate delete...OK")
 
@@ -687,4 +688,4 @@ if __name__ == "__main__":
 
     # my mysql request end###
     # ALTER IGNORE     TABLE    tiker_report ADD UNIQUE(day_close, tiker(6));
-    # load_from_mysql(db_connection_str)
+    # load_from_mysql(sql_login)
