@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 import os
 from pandas_datareader import data as pdr
 import threading
-from .pr_config import *
+from pr_config import *
 
 # TODO: вообще надо бы сделать типа rest api --- программа засылает запрос, который перехватывает собственный модуль
 ''' 
