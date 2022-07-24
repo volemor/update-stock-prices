@@ -118,7 +118,8 @@ def sql_base_clear_for_split_list(list_for_replase_data):
 
 # insert into hist_data  (index,Date , Open, High,  Low, Close, Volume, st_id , Currency, market) values (0, '2019-08-01', 0,0,0,0,0, 'REDFY', 'USD', 'US';
 # update hist_data set date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'CRMBQ'
-# set Date = '2019-08-01' Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'REDFY';
+# set Date = '2019-08-01', Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id = 'REDFY';
+# update hist_data set market = 'USA' where market = 'US' and date = '2022-07-15';
 
 # TODO: наверное надо включать в лог запись - что за модуль сделал запись - а то update or split check??
 def save_log(message, linux_path=''):  # сохраняет в лог файл сообщение..
@@ -244,7 +245,7 @@ def insert_history_date_into_sql():
     stocks_us_investpy = investpy.get_stocks(country=market_name[0])['symbol']
     df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
     
-    us_df_last = df_last_update[df_last_update['market'] == 'US']['st_id']
+    us_df_last = df_last_update[df_last_update['market'] == 'USA']['st_id']
     spb_df_last = df_last_update[df_last_update['market'] == 'SPB']['st_id']
     set_spb, set_us, set_real_us = set(), set(), set()
     
@@ -285,7 +286,7 @@ def insert_history_date_into_sql():
                                                            from_date=from_date_m,
                                                            to_date=to_date_m)
             time_count.append(time.time())
-            df_update[['st_id', 'Currency', 'market']] = only_us_index, "USD", 'US'
+            df_update[['st_id', 'Currency', 'market']] = only_us_index, "USD", 'USA'
             successfully_list.append(only_us_index)
         except Exception as _ex:
             print(f'Error [{only_us_index}] loading')

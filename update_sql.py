@@ -11,7 +11,7 @@ from pandas_datareader import data as pdr
 import threading
 from pr_config import *
 
-# TODO: вообще надо бы сделать типа rest api --- программа засылает запрос, который перехватывает собственный модуль
+# TODO: вообще надо бы сделать типа fastapi --- программа засылает запрос, который перехватывает собственный модуль
 ''' 
 !!!!!вообще надо бы сделать типа rest api --- программа засылает запрос, который перехватывает собственный модуль,
 !!!!!КОТОРЫЙ будет заодно делать проверку на частоту обращения к интернет сервисам!!!!
@@ -382,7 +382,7 @@ def history_updater(linux_path: str, sql_login: str):
                     print('yahho SPB \n', df_update)
                     # pdr.get_data_yahoo(df_last_update.iloc[ind,0], start=from_date_m.strftime("%Y-%m-%d"), end=from_date_m.strftime("%Y-%m-%d")))
                     # continue
-            elif df_last_update.iloc[ind, 3] == 'US' and datetime.weekday(datetime.today()) > 4:
+            elif df_last_update.iloc[ind, 3] == 'USA' and datetime.weekday(datetime.today()) > 4:
                 if pd.DataFrame.any(us_stock) == df_last_update.iloc[
                     ind, 0]:  # если в списке тикеров на investpy - то ищем, иначе лезем в YAHHO
                     try:
@@ -393,7 +393,7 @@ def history_updater(linux_path: str, sql_login: str):
                                                                        to_date=to_date_m)
                         time_count.append(time.time())
                         # print(df_last_update.iloc[ind, 0], df_update.tail(3))
-                        df_update['market'] = "US"
+                        df_update['market'] = "USA"
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
                         df_update['st_id'] = df_last_update.iloc[ind, 0]
                         pd_df_to_sql(df_update)
@@ -413,7 +413,7 @@ def history_updater(linux_path: str, sql_login: str):
                                                 ))[
                                 ['Open', 'High', 'Low', 'Close', 'Volume']]).round(4)
                         time_count.append(time.time())
-                        df_update[['st_id', 'Currency', 'market']] = name, "USD", 'US'
+                        df_update[['st_id', 'Currency', 'market']] = name, "USD", 'USA'
                         # print('data fro YAHHO', df_update.tail(3))
                         df_update.reset_index(level=['Date'], inplace=True)  # замена индекса
                         df_update.drop_duplicates(subset='Date', inplace=True)

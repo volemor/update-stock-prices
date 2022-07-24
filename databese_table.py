@@ -15,7 +15,7 @@ class BaseStatus(Base):
     index = Column(Integer)  # может удалить??
     st_id = Column(String(9), primary_key=True, comment='краткое наименование акции(тикер)')
     date_max = Column(Date, comment='Дата последнего значения')
-    Currency = Column(String(3), comment='рынок обращения тикера')
+    Currency = Column(String(3), comment='валюта обращения тикера')
     date_min = Column(Date, comment='Дата первого значения')
     market = Column(String(3), comment='рынок обращения тикера')
 
@@ -33,7 +33,7 @@ class Hist_data(Base):
     Close = Column(Float, comment='Курс Close на дату')
     Volume = Column(Float, comment='оборот Volume на дату')
     st_id = Column(String(9), comment='краткое наименование акции(тикер)')
-    Currency = Column(String(3), comment='рынок обращения тикера')
+    Currency = Column(String(3), comment='валюта обращения тикера')
     market = Column(String(3), comment='рынок обращения тикера')
 
 
@@ -69,7 +69,7 @@ class Tiker_branch(Base):
     }
     index = Column(Integer)  # может удалить??
     st_id = Column(String(9), primary_key=True, comment='краткое наименование акции(тикер)')
-    Currency = Column(String(3), comment='рынок обращения тикера')
+    Currency = Column(String(3), comment='валюта обращения тикера')
     market = Column(String(3), comment='рынок обращения тикера')
     name = Column(String(80), comment='полное наименование тикера')
     branch = Column(String(50), comment='отрасль тикера')
@@ -171,6 +171,7 @@ class Tiker_report(Base):
 
 databases_name = 'hist_data_test'
 
+
 # create_database_com = f'create database {databases_name};'
 
 
@@ -184,6 +185,7 @@ def create_database():
         database_user_rights = f"grant all privileges on {databases_name}.* to 'python'@'%' IDENTIFIED BY 'python';"
         connection.execute(database_user_rights)
 
+
 server_ip = '192.168.0.118'
 user = 'python'
 password = 'python'
@@ -192,4 +194,3 @@ sql_login = f'mysql+pymysql://{user}:{password}@{server_ip}/{databases_name}'
 engine = create_engine(sql_login)
 
 Base.metadata.create_all(engine)
-

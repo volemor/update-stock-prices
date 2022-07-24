@@ -50,7 +50,7 @@ sql_command_list = ['Select * from tiker_branch ;',
                     'Select st_id, max(date) as date_max from teh_an group by st_id',
                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';',
                     f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';',
-                    f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';',
+                    f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'USA\' and date > \'{my_start_date}\';',
                     'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;',
                     'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;',
                     'Select tr.* from tiker_report tr join (select tr.tiker, max(tr.day_close) as day_close_max from tiker_report tr group by tr.tiker) tiker_report_max on tiker_report_max.tiker = tr.tiker and tiker_report_max.day_close_max = tr.day_close;'
@@ -60,7 +60,7 @@ sql_command_dict = {'tiker_branch':'Select * from tiker_branch ;'
                     , 'teh_an_status':'Select st_id, max(date) as date_max from teh_an group by st_id'
                     , 'hist_SPB': f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'SPB\' and date > \'{my_start_date}\';'
                     , 'hist_RU':  f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'RU\' and date > \'{my_start_date}\';'
-                    , 'hist_US':f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'US\' and date > \'{my_start_date}\';'
+                    , 'hist_US':f'Select date, high, low, close, st_id, Currency from hist_data  WHERE market=\'USA\' and date > \'{my_start_date}\';'
                     , 'teh_an_base': 'Select hd.* from teh_an hd join (Select hd.st_id, max(hd.date) as date_max from teh_an hd group by hd.st_id) hist_data_date_max on hist_data_date_max.st_id = hd.st_id and hist_data_date_max.date_max = hd.date;'
                     , 'tiker_report': 'Select tiker, max(day_close) as max_day_close from tiker_report group by tiker;'
                     , 'tiker_report_last_date':'Select tr.* from tiker_report tr join (select tr.tiker, max(tr.day_close) as day_close_max from tiker_report tr group by tr.tiker) tiker_report_max on tiker_report_max.tiker = tr.tiker and tiker_report_max.day_close_max = tr.day_close;'
