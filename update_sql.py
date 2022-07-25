@@ -444,7 +444,7 @@ def history_updater(linux_path: str, sql_login: str):
                     print("RU load error", df_last_update.iloc[ind, 0])
                     continue
             else:
-                print(f"may be US < {max_wait_days} day==[{df_last_update.loc[ind]['st_id']}]")
+                print(f"may be USA < {max_wait_days} day==[{df_last_update.loc[ind]['st_id']}]")
                 # exit()
                 continue
             # print(df_update)
