@@ -10,6 +10,7 @@ import os
 from pandas_datareader import data as pdr
 import threading
 from pr_config import *
+from moduls import save_log, save_exception_log
 
 # TODO: вообще надо бы сделать типа fastapi --- программа засылает запрос, который перехватывает собственный модуль
 ''' 
@@ -30,7 +31,7 @@ hist_data: date, high, low, open, close, volume
 
 
 добавлена обработка ошибок - и выходим если нет смысла проверять все. 
-добавлена отдельный лог для ошибок при вызове функций (update_extention.log).
+добавлен отдельный лог для ошибок при вызове функций (update_extention.log).
 
  
 '''
@@ -83,187 +84,74 @@ def teh_an(t_name, country_teh):
     return teh_df
 
 
-def save_log(linux_path, message):
-    '''сохраняет в лог файл сообщение о работе программы.. '''
-    f = open(linux_path + 'update.log', mode='a')
-    lines = '[' + str(datetime.today()) + '] ' + str(message)
-    f.writelines(lines + '\n')
-    f.close()
+# def save_log(linux_path, message):
+#     '''сохраняет в лог файл сообщение о работе программы.. '''
+#     f = open(linux_path + 'update.log', mode='a')
+#     lines = '[' + str(datetime.today()) + '] ' + str(message)
+#     f.writelines(lines + '\n')
+#     f.close()
 
 
-def save_exeption_log(linux_path, modul, message: str):
+# def save_exeption_log(modul, message: str):
+#     '''записываем в файл логи ошибок с указанием модуля из которого был вызов
+#     при этом делаем некую фильтрацию
+#     :type linux_path: str
+#     :type modul: str'''
+# 
+#     global stock_not_found_teh_an, no_data_fetched_hist_yahho
+#     try:
+#         if len(message) != 0:
+#             if 'not found' in message and modul == 'teh_an':
+#                 stock_not_found_teh_an.append(message.split()[2].upper())
+#                 return
+#             if 'No data fetched' in message:
+#                 return no_data_fetched_hist_yahho.append(message.split()[5])
+#             if "'Date'" in message:
+#                 return
+#             if 'signal' in message:
+#                 return print('signal')
+#             # TODO: не фильтруется и все же пишется в лог No data fetched
+#             # TODO: надо бы придумать такой фокус, кок сравнение с предудущей записью - если одно и тоже, то просто считаем и
+#             # TODO: записываем число повторений, если запись поменялась.
+# 
+#             if message != '0':
+#                 f = open(linux_path + 'update_extention.log', mode='a')
+#                 lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
+#                 f.writelines(lines + '\n')
+#                 f.close()
+#             else:
+#                 print('exit pass')
+#                 pass
+#     except:
+#         pass
+
+def exception_filter(modul: str, message: str):
     '''записываем в файл логи ошибок с указанием модуля из которого был вызов
     при этом делаем некую фильтрацию
-    :type linux_path: str
-    :type modul: str'''
+    '''
 
     global stock_not_found_teh_an, no_data_fetched_hist_yahho
     try:
         if len(message) != 0:
             if 'not found' in message and modul == 'teh_an':
                 stock_not_found_teh_an.append(message.split()[2].upper())
-                return
+                return ''
             if 'No data fetched' in message:
                 return no_data_fetched_hist_yahho.append(message.split()[5])
             if "'Date'" in message:
                 return
             if 'signal' in message:
-                return print('signal')
+                return
             # TODO: не фильтруется и все же пишется в лог No data fetched
             # TODO: надо бы придумать такой фокус, кок сравнение с предудущей записью - если одно и тоже, то просто считаем и
             # TODO: записываем число повторений, если запись поменялась.
-
             if message != '0':
-                f = open(linux_path + 'update_extention.log', mode='a')
-                lines = '[' + str(datetime.today()) + f']-[{modul}] ' + str(message)
-                f.writelines(lines + '\n')
-                f.close()
+                save_exception_log(modul, message)
             else:
                 print('exit pass')
-                pass
+                return
     except:
-        pass
-
-
-def stock_name_table(linux_path):
-    """загрузка тикеров из инета и файла с СПБ в эксель файл
-    !! сейчас не используется"""
-    ru_stos1 = investpy.stocks.get_stocks(country='russia')
-    ru_stos = ru_stos1[['name', 'symbol']]
-    mmm = np.zeros((len(ru_stos), 1)) + 3
-    my_id = pd.DataFrame(data=mmm, columns=['markets_id'])
-    ru_stos = ru_stos.join(my_id)
-    # print(ru_stos)
-    big_df = pd.DataFrame(columns=['name', 'symbol'])
-    big_df = big_df.append(other=ru_stos)
-    df_spb = pd.read_csv('ListingSecurityList.csv', delimiter=';',
-                         encoding='cp1251')  # читаем список всех тикеров на СПБ
-    stock_spb = df_spb[df_spb['s_currency_kotir'] == 'USD']  # вычисляем список эмитентов СПБ с курсом в USD
-    us_st_spb = stock_spb[['name', 'symbol']]  # срезаем лишние столбцы из списка -- надо менять название столбца!!!!!
-    mmm = np.zeros((len(df_spb), 1)) + 2
-    my_id = pd.DataFrame(data=mmm, columns=['markets_id'])
-    us_st_spb = us_st_spb.join(my_id)
-    # print(us_st_spb)
-    us_stos_usa1 = investpy.stocks.get_stocks(country='United States')
-    us_stos_usa = us_stos_usa1[['name', 'symbol']]
-
-    mmm = np.zeros((len(us_stos_usa), 1)) + 1
-    my_id = pd.DataFrame(data=mmm, columns=['markets_id'])
-    us_stos_usa = us_stos_usa.join(my_id)
-    # print(us_stos_usa)
-    big_df = big_df.append(other=us_st_spb, ignore_index=True)
-    big_df = big_df.append(other=us_stos_usa, ignore_index=True)
-    # print('all', big_df)
-
-    with pd.ExcelWriter(linux_path + 'my_all_st.xlsx') as writer:
-        big_df.to_excel(writer, sheet_name='all')  ### работает!!!
-    # big_df.to_csv('my_test_all_st.csv', sep=';', encoding='cp1251', line_terminator='/n', index=True)
-
-
-def my_start():
-    """исходные данные - константы    """
-
-    col_list = ['tiker', 'name', 'today_close',
-                'mean_min_dek1', 'mean_min_dek2', 'mean_min_dek3', 'mean_min_dek4',
-                'mean_min_dek5', 'mean_min_dek6', 'mean_min_dek7', 'mean_min_dek8',
-                'mean_min_pr_dek1',
-                'mean_min_pr_dek2', 'mean_min_pr_dek3', 'mean_min_pr_dek4', 'mean_min_pr_dek5', 'mean_min_pr_dek6',
-                'mean_min_pr_dek7', 'mean_min_pr_dek8',
-                'min_pr_delta_1_2', 'min_pr_delta_2_3', 'min_pr_delta_3_4', 'min_pr_delta_4_5', 'min_pr_delta_5_6',
-                'min_pr_delta_6_7', 'min_pr_delta_7_8',
-                'max_dek1', 'max_dek2', 'max_dek3', 'max_dek4', 'max_dek5',
-                'max_dek6', 'max_dek7', 'max_dek8',
-                'max_pr_dek1', 'max_pr_dek2', 'max_pr_dek3', 'max_pr_dek4',
-                'max_pr_dek5', 'max_pr_dek6', 'max_pr_dek7', 'max_pr_dek8',
-                'max_pr_delta_1_2', 'max_pr_delta_2_3', 'max_pr_delta_3_4', 'max_pr_delta_4_5', 'max_pr_delta_5_6',
-                'max_pr_delta_6_7', 'max_pr_delta_7_8',
-                'min_y', 'max_y', 'today_y_pr_min',
-                'today_y_pr_max', 'day_start', 'day_close']
-
-    #                'teh_daily_sel', 'teh_daily_buy', 'teh_weekly_sel', 'teh_weekly_buy', 'teh_monthly_sell',
-    #                'teh_monthly_buy',
-    #                'daily_sma_signal 200', 'daily_ema_signal 200', 'weekly_sma_signal 200', 'weekly_ema_signal 200',
-    #                'monthly_sma_signal 200', 'monthly_ema_signal 200'
-    #                ]
-    return col_list
-
-
-def history_data(linux_path):  # сохраняем все  -- вроде работает
-    """модуля для загрузки исторических данных по тикерам в Большой xlsx файл - использовался до внедрения sql базы
-     данные каждый раз загружались с нуля. накопления не было.
-     !!!! сейчас не используется
-     """
-
-    from_date, to_date = '1/08/2019', '01/08/2021'
-    stock_list_data = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'st_id', 'market']
-    all_stock = pd.read_excel(linux_path + 'my_test_all_st.xlsx', sheet_name='all')  # , index_col=0)
-    # test_stock = pd.DataFrame.reset_index(all_stock[all_stock['markets_id']==2], drop=True) # сбросили индексы
-    test_stock = all_stock[all_stock['markets_id'] == 2]  ##загружаем SPB
-    big_df_table = pd.DataFrame(columns=stock_list_data)
-    # print(test_stock.head(4))
-    print(big_df_table)
-    set_1 = 3
-    my_test_set = 20
-    print(my_test_set)
-    # print(test_stock.iloc[[set_1],[0]]) # индекс второй строки set_1=2
-    for set_1 in tqdm(range(my_test_set)):
-        try:
-            df_1 = investpy.get_stock_historical_data(test_stock.symbol.iloc[set_1], country='United States',
-                                                      from_date=from_date, to_date=to_date)
-            print('name', test_stock.symbol.iloc[set_1])
-            len_mmm = test_stock.values[[set_1], [0]]
-            mmm = np.ones((len(df_1), 1))  # len_mmm
-            st_id = pd.DataFrame(data=mmm, columns=['st_id'])
-            st_id['st_id'] = test_stock.symbol.iloc[set_1]
-            # print(st_id)
-            # print('df1',df_1)
-            df_1.reset_index(level=['Date'], inplace=True)  # замена индекса
-            df_1.set_index(pd.Index(range(len(df_1))), inplace=True)
-            # df_1 = df_1.join(pd.DataFrame(st_id, columns=['st_id']))
-            # print('join', df_1)
-            big_df_table = big_df_table.append(df_1, list(['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'st_id']))
-
-        except:
-            print(f'name {test_stock.symbol.iloc[set_1]} Error')
-            continue
-    print('Big', big_df_table)
-    big_df_table.to_excel(linux_path + 'history_data.xlsx')
-
-    # stock_hist_data -- id, date ,open ,high ,low , close, st_id ### состав таблицы
-    # df_test= df_1[['Date','High', 'Low', 'Volume']]#,)
-    # print('test', df_test)
-
-    # 1)Записали все тикеры в один файл. с разбивкой на рынки - USA-1, SPB-2, RU-3.-- теперь это таблица №1 далее..
-    # 2)загружаем наименование рынков - пусть будет таблица №2 3)запускаем цикл по таблице №2 и пробегаемся по всем
-    # значениям таблицы №1 - и в итоге собираем исторические данные в один датафрейм - df_hist_all - - таблица 3 -
-    # записываем в файл в нем формат столбцов - (data), open, (high), (low), close, (symbol), (markets_id) ---  в
-    # скобочках - обязательные значения. 4) добавление данных, которых нет в таблице 3 - загружаем таблицу 3 -
-    # смотрим на даты - выбираем самую большую (для каждого тикера) -  находим разницу с сегодняшней - если больше 7
-    # дней - запускаем подгрузку с сайта и дописываем в конец. по итогам сортируем датафрейм по symbol - записываем в
-    # файл. ps. -- необходиом в пункте 1 добавить возможность проверять есть ли такой тикер уже.. и если есть -- не
-    # дописывать, а пропускать.. -- короче надо проверять актуальность а теперь пробуем все это на паре тикеров
-    '''
-    CREATE TABLE ten_an
-(
-    date datetime NOT NULL ,
-    st_id VARCHAR (6) NOT NULL,
-    teh_daily_sel int ,
-    teh_daily_buy int,
-    teh_weekly_sel int,
-    teh_weekly_buy int,
-    teh_monthly_sell int,
-    teh_monthly_buy int,
-    daily_sma_signal_200 VARCHAR (4), 
-    daily_ema_signal_200 VARCHAR (4),
-    weekly_sma_signal_200 VARCHAR (4),
-    weekly_ema_signal_200 VARCHAR (4),
-    monthly_sma_signal_200 VARCHAR (4),
-    monthly_ema_signal_200 VARCHAR (4),
-    EPS float,
-    P_E float
-    
-) ;  
-    '''
+        return
 
 
 def history_updater(linux_path: str, sql_login: str):
@@ -300,7 +188,7 @@ def history_updater(linux_path: str, sql_login: str):
     teh_an_df_nodata = pd.DataFrame(columns=teh_an_list)
     teh_an_df_nodata.loc[0] = line_1
     print('сегодня...', cur_date.strftime("%Y-%m-%d"))
-    save_log(linux_path, '---------------start update--------------')
+    save_log('---------------start update--------------')
     market_name = ['United States', 'United States', 'russia']
     db_connection = create_engine(sql_login)  # connect to database
 
@@ -315,7 +203,7 @@ def history_updater(linux_path: str, sql_login: str):
     print('Maximum date is--', max_date_df)
     print(f'длина массива {len(df_last_update)}')
 
-    save_log(linux_path, 'DataFrame leght ' + str(len(df_last_update)))
+    save_log('DataFrame leght ' + str(len(df_last_update)))
     us_stock = investpy.get_stocks(country=market_name[0])['symbol']  # список тикеров в США
 
     for ind in tqdm(range(len(df_last_update))):
@@ -347,10 +235,10 @@ def history_updater(linux_path: str, sql_login: str):
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
                         print("USA investpy load error", df_last_update.iloc[ind, 0])
-                        save_exeption_log(linux_path, modul='history [Ipy]',
-                                          message=str(_ex) + str(df_last_update.iloc[ind, 0]))
+                        exception_filter(modul='history [Ipy]',
+                                         message=str(_ex) + str(df_last_update.iloc[ind, 0]))
                         if 'Max retries exceeded with' in str(_ex):
-                            save_log(linux_path, 'Too litle timedelta, need 2 pause')
+                            save_log('Too litle timedelta, need 2 pause')
                             exit()
                         continue
                     print(df_update)
@@ -375,8 +263,8 @@ def history_updater(linux_path: str, sql_login: str):
                             df_update['Date'] >= datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='history [Yah]',
-                                          message=str(_ex) + str(df_last_update.iloc[ind, 0]))
+                        exception_filter(modul='history [Yah]',
+                                         message=str(_ex) + str(df_last_update.iloc[ind, 0]))
                         print("USA YAHHO load error", df_last_update.iloc[ind, 0])
                         continue
                     print('yahho SPB \n', df_update)
@@ -398,8 +286,8 @@ def history_updater(linux_path: str, sql_login: str):
                         df_update['st_id'] = df_last_update.iloc[ind, 0]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='history [Ipy]',
-                                          message=str(_ex) + str(df_last_update.iloc[ind, 0]))
+                        exception_filter(modul='history [Ipy]',
+                                         message=str(_ex) + str(df_last_update.iloc[ind, 0]))
                         # print("USA investpy load error", df_last_update.iloc[ind, 0])
                         continue
                 else:  # иначе лезем в YAHHO
@@ -421,8 +309,8 @@ def history_updater(linux_path: str, sql_login: str):
                             df_update['Date'] >= datetime.strptime(from_date_m, '%d/%m/%Y').strftime('%Y-%m-%d')]
                         pd_df_to_sql(df_update)
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='history [Yah]',
-                                          message=str(_ex) + str(df_last_update.iloc[ind, 0]))
+                        exception_filter(modul='history [Yah]',
+                                         message=str(_ex) + str(df_last_update.iloc[ind, 0]))
                         # print("USA YAHHO load error", df_last_update.iloc[ind, 0])
                         continue
             elif df_last_update.iloc[ind, 3] == 'RU':
@@ -440,7 +328,7 @@ def history_updater(linux_path: str, sql_login: str):
                     df_update['st_id'] = df_last_update.iloc[ind, 0]
                     pd_df_to_sql(df_update)
                 except Exception as _ex:
-                    save_exeption_log(linux_path, modul='history', message=str(_ex))
+                    exception_filter(modul='history', message=str(_ex))
                     print("RU load error", df_last_update.iloc[ind, 0])
                     continue
             else:
@@ -456,31 +344,31 @@ def history_updater(linux_path: str, sql_login: str):
                 delta = round(time_count[ind + 1] - time_count[ind], 2)
                 delta_time.append(delta)
             delta_f = pd.Series(delta_time)
-            save_log(linux_path,
-                     f'mean of timer_count[{len(time_count)}] is [{delta_f.mean().round(2)}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
+            save_log(
+                f'mean of timer_count[{len(time_count)}] is [{delta_f.mean().round(2)}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
             f = open(linux_path + 'timer.log', mode='a')
             f.writelines(f'today [{datetime.today()}]  {[delta_time]} ' + '\n')
             f.close()
-            # save_log(linux_path, 'first 300 delta time saved to timer.log')
-    save_log(linux_path, 'update complite')
-    # save_log(linux_path,
+            # save_log( 'first 300 delta time saved to timer.log')
+    save_log('update complite')
+    # save_log(
     #          f'in YahhoDReader no data fetched [{len(no_data_fetched_hist_yahho)}] next stocks [{no_data_fetched_hist_yahho}] ')
 
     # history_date_base_update(sql_login)
     ''' пишем в лог результат обновления hist_data '''
 
     def update_log_statistic():  #
-        # save_log(linux_path, 'Tread start_____')
+        # save_log( 'Tread start_____')
         # запускаем обновление актуальности данных в history_data
         history_date_base_update(sql_login)
         df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
         statistic_data_base(df_last_update)
-        # save_log(linux_path, 'Tread complite_____')
+        # save_log('Tread complite_____')
 
     update_log_tread = threading.Thread(target=update_log_statistic)  ## just play with some keys
     update_log_tread.start()
 
-    save_log(linux_path, 'teh indicator update start')
+    save_log('teh indicator update start')
     ''' try to find and save timedalta between operation '''
     update_teh = 0
     for indexx in tqdm(df_last_update.st_id):
@@ -491,7 +379,7 @@ def history_updater(linux_path: str, sql_login: str):
                     teh_analis_local = teh_an(indexx, country_teh=market_name[0])
                     print(f"insert USD DATA {indexx}")
                 except Exception as _ex:
-                    save_exeption_log(linux_path, modul='teh_an', message=str(_ex))
+                    exception_filter(modul='teh_an', message=str(_ex))
                     teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                     teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                     teh_analis_local = teh_an_df_nodata
@@ -503,7 +391,7 @@ def history_updater(linux_path: str, sql_login: str):
                     teh_analis_local = teh_an(indexx, country_teh=market_name[2])
                     print(f"insert RU DATA {indexx}")
                 except Exception as _ex:
-                    save_exeption_log(linux_path, modul='teh_an', message=str(_ex))
+                    exception_filter(modul='teh_an', message=str(_ex))
                     teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                     teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                     teh_analis_local = teh_an_df_nodata
@@ -519,7 +407,7 @@ def history_updater(linux_path: str, sql_login: str):
                         print(f"update USD DATA {indexx}")
                         update_teh += 1
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='teh_an', message=str(_ex))
+                        exception_filter(modul='teh_an', message=str(_ex))
                         teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                         teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                         teh_analis_local = teh_an_df_nodata
@@ -531,19 +419,19 @@ def history_updater(linux_path: str, sql_login: str):
                         print(f"update RU DATA {indexx}")
                         update_teh += 1
                     except Exception as _ex:
-                        save_exeption_log(linux_path, modul='teh_an', message=str(_ex))
+                        exception_filter(modul='teh_an', message=str(_ex))
                         teh_an_df_nodata.loc[0]['date'] = cur_date.strftime("%Y-%m-%d")
                         teh_an_df_nodata.loc[0]['st_id'] = str(indexx)
                         teh_analis_local = teh_an_df_nodata
                         print(f"update NO DATA {teh_analis_local}")
                     teh_an_to_sql(teh_analis_local)
                     # print(teh_analis_local)
-    save_log(linux_path, f'teh indicator update complite, make {update_teh} records')
+    save_log(f'teh indicator update complite, make {update_teh} records')
     if len(stock_not_found_teh_an) != 0:
-        save_log(linux_path,
-                 f'teh indicator not found [{len(stock_not_found_teh_an)}] next stock [{stock_not_found_teh_an}] , ')
+        save_log(
+            f'teh indicator not found [{len(stock_not_found_teh_an)}] next stock [{stock_not_found_teh_an}] , ')
     update_log_tread.join()
-    save_log(linux_path, 'base_status update complite')
+    save_log('base_status update complite')
     return df_last_update
 
 
@@ -558,28 +446,6 @@ def history_date_base_update(sql_login: str):
     print('history_date_base_update complite')
 
 
-def first_read_sort(linux_path):
-    stocks_us = investpy.stocks.get_stocks(country='United States')  # читаем список тикеров на биржах США
-    df_spb = pd.read_csv('ListingSecurityList.csv', delimiter=';',
-                         encoding='cp1251')  # читаем список всех тикеров на СПБ
-    stock_spb = df_spb[df_spb['s_currency_kotir'] == 'USD']  # вычисляем список эмитентов СПБ с курсом в USD
-    us_st_spb = stock_spb[['e_full_name', 'symbol', 's_currency_kotir']]  # срезаем лишние столбцы из списка
-    us_st_spb.to_csv('us_stocks_SPB.csv', sep=';', encoding='cp1251')  # сохраняем список тикеров СПБ с курсом в USD
-    stocks_us.to_csv('us_stocks.csv', sep=';', encoding='cp1251')  # сохраняем список тикеров США в .CSV
-    us_st_read = pd.read_csv('us_stocks.csv', delimiter=';', encoding='cp1251')  # Читаем список тикеров США
-    us_st_spb.sort_values(by='symbol')  # сортируем
-    us_st_read = us_st_read.sort_values(by='symbol')  # сортируем
-    spb_mod = us_st_spb[['e_full_name', 'symbol']]  # выделяем столбцы
-    us_mod = us_st_read[['full_name', 'symbol']]  # выделяем столбцы
-    intersection = spb_mod[['symbol']].merge(us_mod[['symbol']]).drop_duplicates()  # делаем пересекающийся список
-    print(intersection)
-    df = pd.concat([spb_mod.merge(intersection), us_mod.merge(intersection)])
-    # df = pd.concat([us_mod, spb_mod], axis= 1)
-    # print(df)
-    intersection.to_csv('intersection.csv', sep=';', encoding='cp1251', header=None)  # сохраняем пересекающийся список
-    # придумал как делать без всего этого - на лету проверяем на соответствие и вуаля - все работает!!!
-
-
 def teh_an_to_sql(teh_an_df):
     """записываем значения теханализа в sql базу """
     engine = create_engine(sql_login)
@@ -587,7 +453,7 @@ def teh_an_to_sql(teh_an_df):
         teh_an_df.to_sql(name='teh_an', con=engine, if_exists='append')  # append , replace
         print(f"teh_an save_to MYSQL [{teh_an_df.loc[0]['st_id']}]...... OK")
     except Exception as _ex:
-        save_exeption_log(linux_path, modul='teh_an_sql', message=str(_ex) + str(teh_an_df.loc[0]['st_id']))
+        exception_filter(modul='teh_an_sql', message=str(_ex) + str(teh_an_df.loc[0]['st_id']))
         print(f"Error MYSQL _ teh_an [{teh_an_df.loc[0]['st_id']}]")
 
 
@@ -597,64 +463,62 @@ def pd_df_to_sql(df):
     try:
         df.to_sql(name='hist_data', con=engine, if_exists='append')  # append , replace
     except Exception as _ex:
-        save_exeption_log(linux_path, modul='hist_sql', message=str(_ex))
+        exception_filter(modul='hist_sql', message=str(_ex))
         print('SQL save error: \n ', df.shape, df, '\n')
     print(f"save_to MYSQL [{df.loc[0][['st_id', 'market']]}]...... OK")
 
 
 def statistic_data_base(df_last_update: pd.DataFrame):
-    """ модуль для подсчета статистики по базе данных - считаем 2 поздние дату и сколько значений в ними, и записываем в лог"""
-    global linux_path
+    """ модуль для подсчета статистики по базе данных - 
+    считаем 2 поздние дату и сколько значений в ними, и записываем в лог"""
     listing_ll = pd.Series({c: df_last_update[c].unique() for c in df_last_update})
     listing_ll['date_max'].sort()
-    save_log(linux_path, "Start statistic calculation")
+    save_log("Start statistic calculation")
     for market_s in df_last_update['market'].unique():
         listing_ll = pd.Series(
             {c: df_last_update[df_last_update['market'] == market_s][c].unique() for c in df_last_update})
         listing_ll['date_max'].sort()
         for num_1 in range(len(listing_ll['date_max']) - 2, len(listing_ll['date_max'])):
             line = f"data for [{market_s}]- [{pd.to_datetime(listing_ll['date_max'][num_1]).date()}] is [{len(df_last_update[(df_last_update['market'] == market_s) & (df_last_update['date_max'] == listing_ll['date_max'][num_1])]['date_max'])}] "
-            save_log(linux_path, line)
-    save_log(linux_path, "statistic calculation complete")
+            save_log(line)
+    save_log("statistic calculation complete")
 
 
 def start_control():
     ''' модуль контроля времени запуска - чтоб не помешать другим программам по обращению к Investpy Yahho'''
 
     if datetime.today().time().hour > 16 or datetime.today().time().hour < 1:
-        save_log(linux_path, '!!!!! TRY run in BLOKED time!!!!!! ')
+        save_log('!!!!! TRY run in BLOKED time!!!!!! ')
         print('!!!!! TRY run in BLOKED time!!!!!! ')
         exit()
 
 
-linux_path = ''
 delta_data_koeff = 20
 mysleep, max_wait_days = 0.001, 45
 stock_not_found_teh_an, no_data_fetched_hist_yahho = [], []
 
 
 def main():
-    global linux_path, mysleep
+    global mysleep
     print('программа обновления базы данных торговой истории')
     print('START')
     # My constant list
-    col_list = my_start()
     global sql_login  # =  sql_login
-    linux_path = '/opt/1/My_Python/st_US/'
-    linux_path = ''
+    # linux_path = '/opt/1/My_Python/st_US/'
+    # linux_path = ''
     if os.name == 'nt':  # проверяем из под чего загрузка.
-        linux_path = ''
+
         history_path = 'D:\\YandexDisk\\корень\\отчеты\\'
         print("start from WINDOWS")
         mysleep = 1
     else:
-        linux_path = '/mnt/1T/opt/gig/My_Python/st_US/'
+        # linux_path = '/mnt/1T/opt/gig/My_Python/st_US/'
         history_path = '/mnt/1T/opt/gig/My_Python/st_US/SAVE'
         print("start from LINUX")
 
     start_control()
     history_updater(linux_path, sql_login)  # загрузка и обновление sql базы
-    save_log(linux_path, '------------update complited --------------')
+    save_log('------------update complited --------------')
 
     exit()
 

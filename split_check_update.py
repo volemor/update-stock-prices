@@ -7,16 +7,18 @@ import pandas as pd
 import investpy
 import time
 from pandas_datareader import data as pdr
-from update_sql import pd_df_to_sql, save_exeption_log
+from update_sql import pd_df_to_sql
 from pr_config import *
+from pr_config import Config_Up
+from moduls import save_log
 
-""" запускается проектамма в 18-10 по понедельникам - должна работу закончить до 23 часов"""
+""" запускается программа в 18-10 - должна работу закончить до 23 часов"""
 
 if os.name == 'nt':  # проверяем из под чего загрузка.
-    linux_path = path_win
+    # linux_path = path_win
     print("start from WINDOWS")
 else:
-    linux_path = path_linux
+    # linux_path = path_linux
     print("start from LINUX")
 
 db_connection = create_engine(sql_login)
@@ -71,20 +73,20 @@ def check_for_time():
     ''' делаем проевку на время - в 23 часа надо прекратить и отключить обновление,
     так как запустили в 18 часов, в 2 ночи следующий запуск обновления исторических значений'''
     if datetime.today().time().hour == 23:
-        save_log(f"Time to go to sleep ))), now exit", linux_path)
+        save_log(f"Time to go to sleep ))), now exit")
         exit()
 
 
 def sql_base_clear_for_split_list(list_for_replase_data):
     global db_connection
-    save_log(f"now try to delete [{list_for_replase_data}]", linux_path)
+    save_log(f"now try to delete [{list_for_replase_data}]")
     try:
         if len(list_for_replase_data) > 0:
             base_status_df = pd.read_sql('Select * from base_status ;', con=db_connection)
             list_for_replase_df = base_status_df.loc[base_status_df['st_id'].isin(list_for_replase_data)][
                 ['st_id', 'date_min']]
             list_for_replase_df.reset_index(inplace=True)
-            save_log(f"now try to delete [{list_for_replase_data}]", linux_path)
+            save_log(f"now try to delete [{list_for_replase_data}]")
             print(list_for_replase_df[['st_id', 'date_min']])
             remove_list, list_sero_set = [], []
             for index in range(len(list_for_replase_df)):  ### Delete sql list split data
@@ -93,11 +95,11 @@ def sql_base_clear_for_split_list(list_for_replase_data):
                         f"delete from hist_data where st_id ='{list_for_replase_df.iat[index, 1]}' and date > '{(list_for_replase_df.iat[index, 2]).strftime('%Y-%m-%d')}' ")).fetchall())
                     remove_list.append(list_for_replase_df.iat[index, 1])
                 except Exception as _ex:
-                    save_exeption_log(linux_path, 'split_check: del_row', _ex)
-                    save_log(f"delete error [{list_for_replase_df.iat[index, 1]}]", linux_path)
+                    save_exeption_log(path_linux, 'split_check: del_row', _ex)
+                    save_log(f"delete error [{list_for_replase_df.iat[index, 1]}]")
                     print(list_for_replase_df.iat[index, 1], 'delete error')
                     continue
-            save_log(f"remove DATA from SQL base [{remove_list}]", linux_path)
+            save_log(f"remove DATA from SQL base [{remove_list}]")
             for index in range(len(list_for_replase_df)):  ### set zero to first row sql data
                 try:
                     print((db_connection.execute(
@@ -105,15 +107,15 @@ def sql_base_clear_for_split_list(list_for_replase_data):
                         f"update hist_data set date = '2019-08-01', Open = '0', High = '0.0001', Low ='0.00001', Close = '0', volume ='0' where st_id ='{list_for_replase_df.iat[index, 1]}' ")).fetchall())
                     list_sero_set.append(list_for_replase_df.iat[index, 1])
                 except Exception as _ex:
-                    save_exeption_log(linux_path, 'split_check: set_zero', _ex)
-                    save_log(f"set ZERO to first row error[{list_for_replase_df.iat[index, 1]}]", linux_path)
+                    save_exeption_log(path_linux, 'split_check: set_zero', _ex)
+                    save_log(f"set ZERO to first row error[{list_for_replase_df.iat[index, 1]}]")
                     print(list_for_replase_df.iat[index, 1], 'set ZERO to first row error')
                     continue
-            save_log(f"SET ZERO DATA to first row of SQL base [{list_sero_set}]", linux_path)
+            save_log(f"SET ZERO DATA to first row of SQL base [{list_sero_set}]")
         else:
-            save_log(f"SPLIT list is empty{list_for_replase_data}", linux_path)
+            save_log(f"SPLIT list is empty{list_for_replase_data}")
     except Exception as _ex:
-        save_log(f"some error[{_ex}]", linux_path)
+        save_log(f"some error[{_ex}]")
 
 
 # insert into hist_data  (index,Date , Open, High,  Low, Close, Volume, st_id , Currency, market) values (0, '2019-08-01', 0,0,0,0,0, 'REDFY', 'USD', 'US';
@@ -122,17 +124,13 @@ def sql_base_clear_for_split_list(list_for_replase_data):
 # update hist_data set market = 'USA' where market = 'US' and date = '2022-07-15';
 
 # TODO: наверное надо включать в лог запись - что за модуль сделал запись - а то update or split check??
-def save_log(message, linux_path=''):  # сохраняет в лог файл сообщение..
-    with open(linux_path + 'update.log', mode='a') as f:
-        lines = '[' + str(datetime.today()) + '] ' + str(message)
-        f.writelines(lines + '\n')
 
 
 def split_check():
     global db_connection
     # поиск рабочей даты
-    save_log('split check start--------------------', linux_path)
-    market_name = ['United States', 'United States', 'russia']
+    save_log('split check start--------------------')
+
     us_stock = investpy.get_stocks(country=market_name[0])['symbol']
     find_name = 'AAPL'
     today = datetime.today().date()
@@ -149,7 +147,7 @@ def split_check():
             timedelta(days=1) + date_control).strftime("%d/%m/%Y")
     date_for_yahho_from, date_for_yahho_to = date_control.strftime('%Y-%m-%d'), (
             timedelta(days=1) + date_control).strftime('%Y-%m-%d')
-    save_log(f"Start SPLIT control for date [{date_control}]", linux_path)
+    save_log(f"Start SPLIT control for date [{date_control}]")
     split_list = []
     for index in range(len(my_sql_df_control_date)):
         check_for_time()
@@ -162,7 +160,7 @@ def split_check():
                                                                       to_date=date_for_investpy_to)
                     time.sleep(1)
                 except Exception as _ex:
-                    save_exeption_log(linux_path=linux_path, modul='split_check: find_slit: investpy', message=_ex)
+                    save_exeption_log(linux_path=path_linux, modul='split_check: find_slit: investpy', message=_ex)
                     print(f"US invest_py error [{my_sql_df_control_date.loc[index]['st_id']}]")
                     continue
                 if (df_invest_py[df_invest_py.index == pd.to_datetime(date_control)].iat[0, 0] /
@@ -170,7 +168,7 @@ def split_check():
                     message = f"Split found for {my_sql_df_control_date.loc[index]['st_id']},US investpy {df_invest_py[df_invest_py.index == pd.to_datetime(date_control)].iat[0, 0].round(1)} != {my_sql_df_control_date.loc[index]['open'].round(1)} my_sql "
                     print(message)
                     split_list.append(my_sql_df_control_date.loc[index]['st_id'])
-                    save_log(message=message, linux_path=linux_path)
+                    save_log(message=message)
                 else:
                     print(
                         f"invest[{df_invest_py[df_invest_py.index == pd.to_datetime(date_control)].iat[0, 0]}],SQL[{my_sql_df_control_date.loc[index]['open'].round(2)}] [{my_sql_df_control_date.loc[index]['st_id']}]")
@@ -182,7 +180,7 @@ def split_check():
                         ['Open', 'High', 'Low', 'Close', 'Volume']]).round(2)
                     time.sleep(1)
                 except Exception as _ex:
-                    save_exeption_log(linux_path=linux_path, modul='split_check: find_slit: Yahho', message=_ex)
+                    save_exeption_log(linux_path=path_linux, modul='split_check: find_slit: Yahho', message=_ex)
                     print("US yahho_ error")
                     continue
                 if (df_yahho[df_yahho.index == pd.to_datetime(date_control)].at[pd.to_datetime(date_control), 'Open'] /
@@ -190,7 +188,7 @@ def split_check():
                     message = f"Split found for {my_sql_df_control_date.loc[index]['st_id']},US yahho {df_yahho[df_yahho.index == pd.to_datetime(date_control)].at[pd.to_datetime(date_control), 'Open'].round(1)} != {my_sql_df_control_date.loc[index]['open'].round(1)} my_sql "
                     print(message)
                     split_list.append(my_sql_df_control_date.loc[index]['st_id'])
-                    save_log(message=message, linux_path=linux_path)
+                    save_log(message=message)
                 else:
                     print(
                         f"YAHHO [{df_yahho[df_yahho.index == pd.to_datetime(date_control)].at[pd.to_datetime(date_control), 'Open']}],SQL[{my_sql_df_control_date.loc[index]['open'].round(2)}] [{my_sql_df_control_date.loc[index]['st_id']}]")
@@ -209,10 +207,10 @@ def split_check():
     #         print("RU invest_py error")
     #         continue
 
-    save_log(f"split list - {split_list}", linux_path)
-    save_log(f"Complite SPLIT control for date [{date_control}]", linux_path)
+    save_log(f"split list - {split_list}")
+    save_log(f"Complite SPLIT control for date [{date_control}]")
     # if len(split_list) > 0:
-    #     f = open(linux_path + 'split.log', mode='x')
+    #     f = open(path_linux + 'split.log', mode='x')
     #     lines = str(True)
     #     f.writelines(lines + '\n')
     #     f.close()
@@ -229,8 +227,8 @@ def insert_history_date_into_sql():
     """
     time_count = []
     global mysleep
-    save_log(message=f'--try add from investpy new stock to history_date--',
-             linux_path=linux_path)
+    save_log(message=f'--try add from investpy new stock to history_date--')
+
     def sleep_timer_regulator():
         '''пробуем регулировать паузу между обращениями за данными налету'''
         global mysleep
@@ -241,23 +239,21 @@ def insert_history_date_into_sql():
             if delta_timer_local > 2:
                 mysleep = 0.001
 
-    market_name = ['United States', 'United States', 'russia']
     stocks_us_investpy = investpy.get_stocks(country=market_name[0])['symbol']
     df_last_update = pd.read_sql('Select * from base_status ;', con=db_connection)
-    
+
     us_df_last = df_last_update[df_last_update['market'] == 'USA']['st_id']
     spb_df_last = df_last_update[df_last_update['market'] == 'SPB']['st_id']
     set_spb, set_us, set_real_us = set(), set(), set()
-    
+
     set_spb.update(spb_df_last)
     set_us.update(us_df_last)
     set_real_us.update(stocks_us_investpy)
-    
-    list_stock_from_real_us_to_us =[*set_real_us.difference(set_us.union(set_spb))] 
-    print(f'is in real US and need to US:', list_stock_from_real_us_to_us)
-    
 
-    # save_log(message='insert new tiker from investpy.get_stocks to SQL history_date', linux_path=linux_path)
+    list_stock_from_real_us_to_us = [*set_real_us.difference(set_us.union(set_spb))]
+    print(f'is in real USA and need to USA:', list_stock_from_real_us_to_us)
+
+    # save_log(message='insert new tiker from investpy.get_stocks to SQL history_date', linux_path=path_linux)
     # df = df_last_update.to_numpy().tolist()
     # my_2_list = stocks_us_investpy.to_numpy().tolist()
     # my_only_US_df_list = []
@@ -273,8 +269,8 @@ def insert_history_date_into_sql():
     # print(f"my list len = {len(my_only_US_df_list)}")
     # print(f'all US list len = {len(my_2_list)}')
     # my_only_US_df_list.sort()
-    
-    save_log(message=f'find {len(list_stock_from_real_us_to_us)}, try add {list_stock_from_real_us_to_us}', linux_path=linux_path)
+
+    save_log(message=f'find: {len(list_stock_from_real_us_to_us)}, try add: {list_stock_from_real_us_to_us}')
     from_date_m, to_date_m = '1/08/2018', datetime.today().strftime("%d/%m/%Y")
     successfully_list = []
     for only_us_index in tqdm(list_stock_from_real_us_to_us):
@@ -290,17 +286,16 @@ def insert_history_date_into_sql():
             successfully_list.append(only_us_index)
         except Exception as _ex:
             print(f'Error [{only_us_index}] loading')
-            save_exeption_log(linux_path=linux_path, modul='insert US: to SQL: investpy', message=_ex)
+            save_exeption_log(linux_path=path_linux, modul='insert US: to SQL: investpy', message=_ex)
             continue
         # TODO: обязательно допилить перенос этой функции с переменными
         pd_df_to_sql(df_update)
         sleep_timer_regulator()
     save_log(
-        message=f'LEn of successfully list is [{len(successfully_list)}], apply [{round(100 * len(successfully_list) / len(list_stock_from_real_us_to_us), 0)}]%,  added list-- {successfully_list}',
-        linux_path=linux_path)
+        message=f'LEn of successfully list is [{len(successfully_list)}], apply [{round(100 * len(successfully_list) / len(list_stock_from_real_us_to_us), 0)}]%,  added list-- {successfully_list}')
 
 
-save_log('------[]--------split check start---------[]-----', linux_path= linux_path)
+save_log('------[]--------split check start---------[]-----')
 split_list_return = split_check()
 # split_list_return = ['ADS', 'T']
 
@@ -309,5 +304,5 @@ sql_base_clear_for_split_list(split_list_return)
 """  требуется ручное тестирование"""
 insert_history_date_into_sql()
 
-save_log( '-------][--------split check complite---------][---', linux_path=linux_path)
+save_log('-------][--------split check complite---------][---')
 history_date_base_update()  # по итогам проверки обновляем статус базы
