@@ -10,6 +10,7 @@ import os
 from pandas_datareader import data as pdr
 import threading
 from pr_config import *
+from pr_config import Config_Up
 from moduls import save_log, save_exception_log
 
 # TODO: вообще надо бы сделать типа fastapi --- программа засылает запрос, который перехватывает собственный модуль
@@ -158,8 +159,6 @@ def history_updater():
     """основной модуль обновления исторических данных
     hist_data: date, high, low, open, close, volume
     и данных теханализа путем загрузки данных c сервисов Investpy и Yahho
-
-
     """
 
     # делаем обновление базы mysql
@@ -346,7 +345,7 @@ def history_updater():
             delta_f = pd.Series(delta_time)
             save_log(
                 f'mean of timer_count[{len(time_count)}] is [{delta_f.mean().round(2)}], min is [{delta_f.min()}], max is [{delta_f.max()}]')
-            f = open(linux_path + 'timer.log', mode='a')
+            f = open(Config_Up.Path_linux + 'timer.log', mode='a')
             f.writelines(f'today [{datetime.today()}]  {[delta_time]} ' + '\n')
             f.close()
             # save_log( 'first 300 delta time saved to timer.log')
@@ -356,7 +355,7 @@ def history_updater():
 
     # history_date_base_update(sql_login)
     ''' пишем в лог результат обновления hist_data '''
-
+    
     def update_log_statistic():  #
         # save_log( 'Tread start_____')
         # запускаем обновление актуальности данных в history_data
