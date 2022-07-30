@@ -154,7 +154,7 @@ def exception_filter(modul: str, message: str):
         return
 
 
-def history_updater(linux_path: str, sql_login: str):
+def history_updater():
     """основной модуль обновления исторических данных
     hist_data: date, high, low, open, close, volume
     и данных теханализа путем загрузки данных c сервисов Investpy и Yahho
@@ -517,7 +517,7 @@ def main():
         print("start from LINUX")
 
     start_control()
-    history_updater(linux_path, sql_login)  # загрузка и обновление sql базы
+    history_updater()  # загрузка и обновление sql базы
     save_log('------------update complited --------------')
 
     exit()
